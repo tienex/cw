@@ -152,6 +152,28 @@ typedef enum {
   TOK_BASED,            // __based
   TOK_SEGNAME,          // __segname
   TOK_STARTUP,          // __startup
+  TOK_EXIT,             // __exit
+  TOK_PASCAL,           // __pascal (calling convention)
+  TOK_SYSCALL,          // __syscall (calling convention)
+  TOK_FORTRAN,          // __fortran (calling convention)
+
+  //
+  // MetaWare Built-in Functions
+  //
+  TOK_BUILTIN_ABS,              // __abs
+  TOK_BUILTIN_MIN,              // __min
+  TOK_BUILTIN_MAX,              // __max
+  TOK_BUILTIN_BIT_COUNT,        // __bit_count
+  TOK_BUILTIN_LEADING_ZEROS,    // __leading_zeros
+  TOK_BUILTIN_TRAILING_ZEROS,   // __trailing_zeros
+  TOK_BUILTIN_ROTATE_LEFT,      // __rotate_left
+  TOK_BUILTIN_ROTATE_RIGHT,     // __rotate_right
+  TOK_BUILTIN_ATOMIC_ADD,       // __atomic_add
+  TOK_BUILTIN_ATOMIC_SWAP,      // __atomic_swap
+  TOK_BUILTIN_CAS,              // __compare_and_swap
+  TOK_BUILTIN_SEGMENT_OF,       // __segment_of
+  TOK_BUILTIN_OFFSET_OF,        // __offset_of
+  TOK_BUILTIN_MAKE_POINTER,     // __make_pointer
 
   //
   // Operators

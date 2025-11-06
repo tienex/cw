@@ -118,6 +118,26 @@ STATIC CONST KEYWORD_ENTRY  mKeywordTable[] = {
   { "__based",       TOK_BASED,         TRUE  },
   { "__segname",     TOK_SEGNAME,       TRUE  },
   { "__startup",     TOK_STARTUP,       TRUE  },
+  { "__exit",        TOK_EXIT,          TRUE  },
+  { "__pascal",      TOK_PASCAL,        TRUE  },
+  { "__syscall",     TOK_SYSCALL,       TRUE  },
+  { "__fortran",     TOK_FORTRAN,       TRUE  },
+
+  // MetaWare Built-in Functions
+  { "__abs",                TOK_BUILTIN_ABS,            TRUE  },
+  { "__min",                TOK_BUILTIN_MIN,            TRUE  },
+  { "__max",                TOK_BUILTIN_MAX,            TRUE  },
+  { "__bit_count",          TOK_BUILTIN_BIT_COUNT,      TRUE  },
+  { "__leading_zeros",      TOK_BUILTIN_LEADING_ZEROS,  TRUE  },
+  { "__trailing_zeros",     TOK_BUILTIN_TRAILING_ZEROS, TRUE  },
+  { "__rotate_left",        TOK_BUILTIN_ROTATE_LEFT,    TRUE  },
+  { "__rotate_right",       TOK_BUILTIN_ROTATE_RIGHT,   TRUE  },
+  { "__atomic_add",         TOK_BUILTIN_ATOMIC_ADD,     TRUE  },
+  { "__atomic_swap",        TOK_BUILTIN_ATOMIC_SWAP,    TRUE  },
+  { "__compare_and_swap",   TOK_BUILTIN_CAS,            TRUE  },
+  { "__segment_of",         TOK_BUILTIN_SEGMENT_OF,     TRUE  },
+  { "__offset_of",          TOK_BUILTIN_OFFSET_OF,      TRUE  },
+  { "__make_pointer",       TOK_BUILTIN_MAKE_POINTER,   TRUE  },
 
   { NULL,            TOK_EOF,           FALSE }
 };
@@ -135,7 +155,7 @@ TokenIsKeyword (
   IN  TOKEN_TYPE  Type
   )
 {
-  return (Type >= TOK_AUTO && Type <= TOK_STARTUP);
+  return (Type >= TOK_AUTO && Type <= TOK_BUILTIN_MAKE_POINTER);
 }
 
 /**
