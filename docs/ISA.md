@@ -39,6 +39,101 @@ Compressed instructions are 16 bits wide for improved code density:
 └────────┴──────────────────────────┘
 ```
 
+### 1.3 Encoding Examples
+
+**Example 1: ADD $5,$10,$15**
+```
+Instruction: ADD $5,$10,$15
+Encoding:    0x20 05 0A 0F
+Binary:      00100000 00000101 00001010 00001111
+             ─┬────── ───┬─── ───┬─── ───┬───
+              │         │       │       └─ Z = 15 ($15)
+              │         │       └───────── Y = 10 ($10)
+              │         └─────────────────── X = 5 ($5)
+              └─────────────────────────────── OP = 0x20 (ADD)
+```
+
+**Example 2: ADDI $5,$10,42**
+```
+Instruction: ADDI $5,$10,42
+Encoding:    0x21 05 0A 2A
+Binary:      00100001 00000101 00001010 00101010
+             ─┬────── ───┬─── ─────┬─────────
+              │         │         └────────── YZ = 42 (immediate)
+              │         └──────────────────── X = 5 ($5)
+              └────────────────────────────── OP = 0x21 (ADDI)
+```
+
+**Example 3: SETL $5,0x1234**
+```
+Instruction: SETL $5,0x1234
+Encoding:    0xE3 05 12 34
+Binary:      11100011 00000101 00010010 00110100
+             ─┬────── ───┬─── ─────┬─────────
+              │         │         └────────── YZ = 0x1234 (immediate)
+              │         └──────────────────── X = 5 ($5)
+              └────────────────────────────── OP = 0xE3 (SETL)
+```
+
+**Example 4: JMP offset**
+```
+Instruction: JMP forward+100
+Encoding:    0xF0 00 00 64
+Binary:      11110000 00000000 00000000 01100100
+             ─┬────── ─────────┬─────────────
+              │                └───────────── XYZ = 100 (offset in tetras)
+              └────────────────────────────── OP = 0xF0 (JMP)
+```
+
+**Example 5: LDO $1,$254,8** (Load from stack)
+```
+Instruction: LDO $1,$254,8
+Encoding:    0x8B 01 FE 08
+Binary:      10001011 00000001 11111110 00001000
+             ─┬────── ───┬─── ───┬─── ───┬───
+              │         │       │       └─ Z = 8 (offset)
+              │         │       └───────── Y = 254 ($254, stack pointer)
+              │         └─────────────────── X = 1 ($1)
+              └─────────────────────────────── OP = 0x8B (LDO)
+```
+
+**Example 6: Compressed ADD** (when operands fit)
+```
+Instruction: ADD $5,$10,$15 (compressed)
+Encoding:    0x80 0A
+Binary:      10000000 00001010
+             ─┬────── ───┬───
+              │         └────── Compressed operands (4-bit registers)
+              └──────────────── Compressed opcode
+Note: Only possible if all registers fit in 4 bits
+```
+
+**Example 7: FADD F5,F10,F15** (Floating-point)
+```
+Instruction: FADD F5,F10,F15
+Encoding:    0x60 05 0A 0F
+Binary:      01100000 00000101 00001010 00001111
+             ─┬────── ───┬─── ───┬─── ───┬───
+              │         │       │       └─ Z = 15 (F15)
+              │         │       └───────── Y = 10 (F10)
+              │         └─────────────────── X = 5 (F5)
+              └─────────────────────────────── OP = 0x60 (FADD)
+```
+
+**Example 8: VADD V5,V10,V15,P3** (Vector with predicate)
+```
+Instruction: VADD V5,V10,V15,P3
+Encoding:    0xE0 05 0A 0F 03
+Binary:      11100000 00000101 00001010 00001111 00000011
+             ─┬────── ───┬─── ───┬─── ───┬─── ───┬───
+              │         │       │       │       └─ PM = 3 (P3)
+              │         │       │       └───────── VS2 = 15 (V15)
+              │         │       └─────────────────── VS1 = 10 (V10)
+              │         └─────────────────────────── VD = 5 (V5)
+              └───────────────────────────────────── OP = 0xE0 (VADD)
+Note: Actual vector encoding may vary by implementation
+```
+
 ## 2. Standard MMIX Opcode List
 
 ### 2.1 Load Instructions (0x00 - 0x0F)
@@ -533,46 +628,316 @@ Value:   [LSB]                             [MSB]
 | RUP | 3 | Round up (toward +∞) |
 | RMM | 4 | Round to nearest, ties away from zero |
 
-## 10. ABI Details
+## 10. Application Binary Interface (ABI)
 
-### 10.1 Stack Frame Layout (64-bit)
+### 10.1 Register Usage Convention
+
+#### 10.1.1 General-Purpose Registers (64-bit ABI)
+
+| Register | Name | Usage | Preserved |
+|----------|------|-------|-----------|
+| $0 | zero | Constant zero | N/A |
+| $1-$8 | a0-a7 | Function arguments / return values | Caller |
+| $9-$15 | t0-t6 | Temporary registers | Caller |
+| $16-$23 | s0-s7 | Saved registers | Callee |
+| $24 | gp | Global pointer (optional) | Callee |
+| $25 | tp | Thread pointer | Callee |
+| $252 | fp | Frame pointer (optional) | Callee |
+| $253 | ra | Return address | Caller |
+| $254 | sp | Stack pointer | Callee |
+| $255 | — | Reserved for OS/kernel | Special |
+
+#### 10.1.2 Floating-Point Registers
+
+| Register | Usage | Preserved |
+|----------|-------|-----------|
+| F0-F7 | FP arguments / return values | Caller |
+| F8-F15 | FP temporaries | Caller |
+| F16-F23 | FP saved registers | Callee |
+| F24-F255 | FP temporaries | Caller |
+
+**FPR Aliasing Mode**: When `FprAliasedToGpr = TRUE`, F0-F255 are aliased to $0-$255 and follow GPR conventions.
+
+#### 10.1.3 Vector Registers
+
+| Register | Usage | Preserved |
+|----------|-------|-----------|
+| V0-V7 | Vector arguments / return values | Caller |
+| V8-V31 | Vector temporaries | Caller |
+| V32-V255 | Vector temporaries | Caller |
+
+#### 10.1.4 Special Registers
+
+| Register | Name | Usage |
+|----------|------|-------|
+| rA | Arithmetic status | FP exception flags |
+| rB | Bootstrap | Boot address |
+| rG | Global threshold | Register window boundary |
+| rL | Local threshold | Register window boundary |
+| rJ | Return jump | Function return address |
+| rS | Stack pointer | Hardware stack management |
+| rO | Stack offset | Register window offset |
+| rT | Trap handler | Exception handler address |
+| rW | Where | Exception PC |
+| rX | Execution | Faulting instruction |
+| rY, rZ | Operands | Exception operands |
+
+### 10.2 Function Calling Convention
+
+#### 10.2.1 Parameter Passing
+
+**Integer / Pointer Arguments:**
+- First 8 arguments: $1-$8 (a0-a7)
+- Additional arguments: Stack (16-byte aligned)
+
+**Floating-Point Arguments:**
+- First 8 FP arguments: F1-F8
+- Additional FP arguments: Stack
+
+**Vector Arguments:**
+- First 8 vector arguments: V1-V8
+- Additional vector arguments: Stack (must be 16-byte aligned)
+
+**Large Structures** (> 8 bytes):
+- Passed by reference (pointer in argument register)
+- Caller allocates space
+- Caller responsible for copying if needed
+
+**Variadic Functions:**
+- Named arguments follow normal rules
+- Variadic arguments always on stack
+- Floating-point values passed in integer registers when mixed with integers
+
+#### 10.2.2 Return Values
+
+**Integer / Pointer Returns:**
+- Single value: $1 (a0)
+- Pair (128-bit): $1-$2 (a0-a1)
+- Quad (256-bit): $1-$4 (a0-a3)
+
+**Floating-Point Returns:**
+- Single FP value: F1
+- Multiple FP values: F1-F4
+- Complex: Real in F1, Imaginary in F2
+
+**Vector Returns:**
+- Single vector: V1
+- Multiple vectors: V1-V4
+
+**Structures** (by value):
+- ≤ 8 bytes: $1
+- ≤ 16 bytes: $1-$2
+- ≤ 32 bytes: $1-$4
+- > 32 bytes: Returned via hidden pointer (passed in $1 by caller)
+
+#### 10.2.3 Stack Frame Layout (Detailed)
 
 ```
 High addresses
-┌─────────────────────┐
-│ Previous frame      │
-├─────────────────────┤
-│ Return address      │ ← $254 (on entry)
-├─────────────────────┤
-│ Saved registers     │
-├─────────────────────┤
-│ Local variables     │
-├─────────────────────┤
-│ Outgoing args (>8)  │
-└─────────────────────┘ ← $254 (in function)
+┌─────────────────────────┐
+│ Caller's frame          │
+├─────────────────────────┤
+│ Arg 9                   │ +72 from entry SP
+├─────────────────────────┤
+│ Arg 10                  │ +64 from entry SP
+├─────────────────────────┤
+│ ...                     │
+├─────────────────────────┤
+│ (Alignment padding)     │
+├═════════════════════════┤ ← Entry SP ($254 on entry)
+│ Return address ($253)   │ -8
+├─────────────────────────┤
+│ Old FP ($252)           │ -16 (if using frame pointer)
+├─────────────────────────┤
+│ Saved register $23      │ -24
+│ Saved register $22      │ -32
+│ ...                     │
+│ Saved register $16      │ -80
+├─────────────────────────┤
+│ Saved FP register F23   │ -88 (16 bytes, aligned)
+│ ...                     │
+│ Saved FP register F16   │ -216
+├─────────────────────────┤
+│ Local variable 1        │ -224
+│ Local variable 2        │ -232
+│ ...                     │
+├─────────────────────────┤
+│ (Alignment padding)     │
+├─────────────────────────┤
+│ Outgoing arg space (≥8) │
+│ (for next function call)│
+└─────────────────────────┘ ← Current SP ($254 in function)
 Low addresses
 ```
 
-### 10.2 Register Allocation
+**Stack Alignment:**
+- Stack pointer must be 16-byte aligned at all times
+- 32-byte alignment required for vector operations
+- 64-byte alignment required for matrix operations
 
-**Caller-saved** (may be clobbered):
-- $1-$8 (arguments/return)
-- $9-$15 (temporaries)
+#### 10.2.4 Function Prologue Example
 
-**Callee-saved** (must be preserved):
-- $16-$23
-- $254 (stack pointer)
+```asm
+function_name:
+    ; Save return address and frame pointer
+    SUBU $254,$254,96       ; Allocate stack frame (96 bytes)
+    STO  $253,$254,88       ; Save return address at offset 88
+    STO  $252,$254,80       ; Save old frame pointer at offset 80
+    ADDU $252,$254,96       ; Set new frame pointer
 
-### 10.3 Data Type Alignment
+    ; Save callee-saved registers
+    STO  $16,$254,0         ; Save $16
+    STO  $17,$254,8         ; Save $17
+    STO  $18,$254,16        ; Save $18
+    ; ... save other needed registers
 
-| Type | Size | Alignment |
-|------|------|-----------|
-| byte | 1 | 1 |
-| wyde | 2 | 2 |
-| tetra | 4 | 4 |
-| octa | 8 | 8 |
-| vector | varies | 16 |
-| matrix | varies | 64 |
+    ; Save callee-saved FP registers (if used)
+    STOU F16,$254,32        ; Save F16 (16-byte aligned)
+    STOU F17,$254,48        ; Save F17
+    ; ... function body follows
+```
+
+#### 10.2.5 Function Epilogue Example
+
+```asm
+    ; Restore callee-saved FP registers
+    LDOU F17,$254,48        ; Restore F17
+    LDOU F16,$254,32        ; Restore F16
+
+    ; Restore callee-saved registers
+    LDO  $18,$254,16        ; Restore $18
+    LDO  $17,$254,8         ; Restore $17
+    LDO  $16,$254,0         ; Restore $16
+
+    ; Restore frame pointer and return address
+    LDO  $252,$254,80       ; Restore frame pointer
+    LDO  $253,$254,88       ; Restore return address
+    ADDU $254,$254,96       ; Deallocate stack frame
+
+    ; Return to caller
+    JMP  $253,0             ; Jump to return address
+```
+
+### 10.3 Position-Independent Code (PIC)
+
+#### 10.3.1 Global Offset Table (GOT)
+
+```asm
+; Load address of global variable via GOT
+_GLOBAL_OFFSET_TABLE_:
+    LDO  $24,got_base       ; Load GOT base into $24 (gp)
+    LDO  $1,$24,var_offset  ; Load variable address from GOT
+    LDO  $2,$1,0            ; Load variable value
+```
+
+#### 10.3.2 Procedure Linkage Table (PLT)
+
+```asm
+; Call external function via PLT
+external_func@PLT:
+    LDO  $1,$24,func_offset ; Load function address from GOT
+    JMP  $1,0               ; Jump to function
+```
+
+### 10.4 Thread-Local Storage (TLS)
+
+#### 10.4.1 TLS Access Models
+
+**Local Exec (LE) Model:**
+```asm
+; Access thread-local variable (executable)
+    LDO  $1,$25,var_offset  ; $25 = thread pointer
+    LDO  $2,$1,0            ; Load TLS variable
+```
+
+**Initial Exec (IE) Model:**
+```asm
+; Access thread-local variable (shared library)
+    LDO  $1,$24,tls_offset  ; Load TLS offset from GOT
+    ADDU $1,$25,$1          ; Add to thread pointer
+    LDO  $2,$1,0            ; Load TLS variable
+```
+
+**General Dynamic (GD) Model:**
+```asm
+; Access thread-local variable (dynamic)
+    PUSHJ $253,__tls_get_addr  ; Get TLS address
+    LDO  $2,$1,0            ; Load TLS variable
+```
+
+### 10.5 Data Type Sizes and Alignment
+
+| Type | Size (bytes) | Alignment | Notes |
+|------|--------------|-----------|-------|
+| `char` | 1 | 1 | Signed or unsigned |
+| `short` | 2 | 2 | 16-bit |
+| `int` | 4 | 4 | 32-bit |
+| `long` | 8 | 8 | 64-bit |
+| `long long` | 8 | 8 | 64-bit |
+| `pointer` | 8 | 8 | 64-bit address |
+| `float` | 4 | 4 | IEEE 754 single |
+| `double` | 8 | 8 | IEEE 754 double |
+| `long double` | 16 | 16 | IEEE 754 quad |
+| `__float128` | 16 | 16 | IEEE 754 quad |
+| `vector` | 16-256 | 16 | Scalable vectors |
+| `matrix tile` | Variable | 64 | Matrix operations |
+
+**Structure Alignment:**
+- Natural alignment for all members
+- Padding inserted as needed
+- Struct alignment = max member alignment
+- Struct size rounded up to multiple of alignment
+
+**Array Alignment:**
+- Same as element type
+- No padding between elements
+
+**Union Alignment:**
+- Alignment of largest member
+- Size = size of largest member (rounded)
+
+### 10.6 Varargs / Variable Arguments
+
+**stdarg.h Implementation:**
+```c
+typedef struct {
+    void *stack_ptr;        // Current stack position
+    int arg_count;          // Number of arguments processed
+    int fp_offset;          // FP register offset
+    int vec_offset;         // Vector register offset
+} va_list;
+
+// Start of variadic arguments
+void va_start(va_list *ap, last_named_arg);
+
+// Get next argument
+type va_arg(va_list *ap, type);
+
+// End of variadic arguments
+void va_end(va_list *ap);
+```
+
+**Argument Extraction:**
+- Check if argument is in register (first 8)
+- If in register: Copy from saved register area
+- If on stack: Load from stack, advance pointer
+- FP arguments use separate FP register tracking
+- Vector arguments require 16-byte alignment
+
+### 10.7 System V MMIX ABI Summary
+
+**Key Differences from Other Architectures:**
+- 256 general-purpose registers (vs 32 in RISC-V, ARM)
+- Optional FPR aliasing to GPRs (compatibility mode)
+- Per-ring endianness and stack direction (KESU extension)
+- Scalable vector length (128-2048 bits)
+- Hardware register windows (rG, rL, rO registers)
+
+**Compatibility Notes:**
+- Binary compatible with MMIX-ELF format
+- Source compatible with ANSI C/C++/C23
+- POSIX compliant
+- GCC-compatible attributes supported
 
 ## 11. Performance Hints
 
