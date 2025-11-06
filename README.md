@@ -126,7 +126,9 @@ The compiled binary will be in `bin/mmix-emulator`.
 mmix-emulator/
 ├── docs/                    # Documentation
 │   ├── ARCHITECTURE.md      # Architecture overview
-│   └── ISA.md              # Instruction set reference
+│   ├── ISA.md              # Instruction set reference
+│   ├── KESU_EXTENSION.md   # KESU 4-ring protection
+│   └── MMIX_COMPLETE_REFERENCE.md  # Complete reference guide
 ├── include/                 # Public headers
 │   ├── MmixEmulator.h      # Main API
 │   ├── MmixTypes.h         # Type definitions
@@ -232,8 +234,11 @@ All functions include UEFI-style documentation:
 
 Comprehensive documentation is available in the `docs/` directory:
 
-- **ARCHITECTURE.md**: Complete architecture documentation including CPU, memory, virtualization, vector/matrix extensions, FPU, ML instructions, and hardware devices
-- **ISA.md**: Instruction set reference with encoding, semantics, and examples
+- **docs/ARCHITECTURE.md**: Complete architecture documentation including CPU, memory, virtualization, vector/matrix extensions, FPU, ML instructions, and hardware devices
+- **docs/ISA.md**: Instruction set reference with encoding, semantics, and examples
+- **docs/KESU_EXTENSION.md**: VMS-style 4-ring protection with per-ring endianness, stack direction, and page tables
+- **docs/MMIX_COMPLETE_REFERENCE.md**: Comprehensive 979-line reference consolidating all documentation
+- **STATUS.md**: Current project status, recent accomplishments, and implementation progress
 
 ## Contributing
 
