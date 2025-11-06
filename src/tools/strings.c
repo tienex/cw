@@ -1,52 +1,31 @@
 /** @file
-  strings - Print printable strings from files.
+  strings - Extract printable strings from binary files.
 
-  Finds and prints sequences of printable characters in binary files.
-  Works on any file type, including object files and executables.
+  Universal string extractor that works on any binary file.
 
   Copyright (c) 2025. All rights reserved.
   SPDX-License-Identifier: MIT
 **/
 
+#include "binformat/BinFormat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <getopt.h>
-#include <stdint.h>
-
-typedef uint8_t   UINT8;
-typedef uint32_t  UINT32;
-typedef uint64_t  UINT64;
-typedef int32_t   INT32;
-typedef int       BOOLEAN;
-typedef char      CHAR;
-typedef void      VOID;
-#define TRUE   1
-#define FALSE  0
-#define IN
-#define OUT
-#define CONST const
-#define STATIC static
+#include <ctype.h>
 
 typedef struct {
-  UINT32   MinLength;       ///< Minimum string length (default 4)
-  BOOLEAN  PrintOffset;     ///< Print offset of string
-  BOOLEAN  PrintFileName;   ///< Print file name
-  CHAR     OffsetFormat;    ///< Offset format: 'o', 'd', 'x'
-  BOOLEAN  ScanWholeFile;   ///< Scan whole file (default)
-  BOOLEAN  ScanDataOnly;    ///< Scan only data sections
-  UINT32   Encoding;        ///< Character encoding (ASCII, UTF-8, UTF-16, etc.)
+  INT32    MinLength;        ///< Minimum string length (default 4)
+  BOOLEAN  PrintOffset;      ///< Print offset of string
+  BOOLEAN  PrintFileName;    ///< Print file name before each string
+  INT32    Radix;            ///< Offset radix: 8, 10, or 16
 } STRINGS_OPTIONS;
 
 STATIC STRINGS_OPTIONS  gOptions = {
   .MinLength      = 4,
   .PrintOffset    = FALSE,
   .PrintFileName  = FALSE,
-  .OffsetFormat   = 'd',
-  .ScanWholeFile  = TRUE,
-  .ScanDataOnly   = FALSE,
-  .Encoding       = 's'  // Single-byte (ASCII)
+  .Radix          = 10
 };
 
 /**
@@ -55,27 +34,17 @@ STATIC STRINGS_OPTIONS  gOptions = {
 STATIC
 VOID
 PrintUsage (
-  CONST char  *ProgramName
+  CONST CHAR8  *ProgramName
   )
 {
   printf ("Usage: %s [options] file...\n", ProgramName);
-  printf ("Print the strings of printable characters in files\n\n");
+  printf ("Extract printable strings from binary files\n\n");
   printf ("Options:\n");
-  printf ("  -a, --all                  Scan entire file (default)\n");
-  printf ("  -d, --data                 Scan only initialized data sections\n");
-  printf ("  -f, --print-file-name      Print file name before each string\n");
-  printf ("  -n, --bytes=NUMBER         Minimum string length (default 4)\n");
-  printf ("  -t, --radix=RADIX          Print offset in RADIX (o, d, x)\n");
-  printf ("  -o                         Equivalent to -t o (octal)\n");
-  printf ("  -e, --encoding=ENCODING    Select character encoding\n");
-  printf ("                             s = single-byte (ASCII, default)\n");
-  printf ("                             S = single-byte (7-bit ASCII)\n");
-  printf ("                             b = 16-bit big-endian\n");
-  printf ("                             l = 16-bit little-endian\n");
-  printf ("                             B = 32-bit big-endian\n");
-  printf ("                             L = 32-bit little-endian\n");
-  printf ("  -h, --help                 Display this information\n");
-  printf ("  -V, --version              Display version information\n");
+  printf ("  -n, --bytes=NUMBER     Minimum string length (default 4)\n");
+  printf ("  -t, --radix={o,d,x}    Print offset in octal, decimal, or hex\n");
+  printf ("  -f, --print-file-name  Print file name before each string\n");
+  printf ("  -h, --help             Display this information\n");
+  printf ("  -V, --version          Display version information\n");
 }
 
 /**
@@ -84,131 +53,150 @@ PrintUsage (
 STATIC
 BOOLEAN
 IsPrintable (
-  IN UINT8  Ch
+  IN CHAR8  c
   )
 {
-  return (Ch >= 32 && Ch < 127) || Ch == '\t';
+  return (c >= ' ' && c <= '~') || c == '\t';
 }
 
 /**
-  Print offset in specified radix.
+  Extract strings from data buffer.
 **/
 STATIC
 VOID
-PrintOffset (
-  IN UINT64  Offset
+ExtractStrings (
+  IN CONST CHAR8  *FileName,
+  IN CONST UINT8  *Data,
+  IN UINT64       Size
   )
 {
-  if (gOptions.OffsetFormat == 'o') {
-    printf ("%7llo ", (unsigned long long)Offset);
-  } else if (gOptions.OffsetFormat == 'x') {
-    printf ("%7llx ", (unsigned long long)Offset);
-  } else {
-    printf ("%7llu ", (unsigned long long)Offset);
-  }
-}
+  UINT64  i;
+  UINT64  StringStart;
+  INT32   StringLength;
+  CHAR8   Buffer[4096];
 
-/**
-  Process file and extract strings.
-**/
-STATIC
-INT32
-ProcessFile (
-  IN CONST char  *FileName
-  )
-{
-  FILE    *File;
-  UINT8   *Buffer;
-  UINT8   *StringBuf;
-  size_t  BytesRead;
-  UINT64  Offset;
-  UINT32  StringLen;
-  size_t  i;
+  StringStart  = 0;
+  StringLength = 0;
 
-  File = fopen (FileName, "rb");
-  if (File == NULL) {
-    fprintf (stderr, "strings: %s: No such file or directory\n", FileName);
-    return 1;
-  }
-
-  //
-  // Allocate buffers
-  //
-  Buffer = malloc (65536);
-  if (Buffer == NULL) {
-    fprintf (stderr, "strings: out of memory\n");
-    fclose (File);
-    return 1;
-  }
-
-  StringBuf = malloc (65536);
-  if (StringBuf == NULL) {
-    fprintf (stderr, "strings: out of memory\n");
-    free (Buffer);
-    fclose (File);
-    return 1;
-  }
-
-  //
-  // Scan file
-  //
-  Offset    = 0;
-  StringLen = 0;
-
-  while ((BytesRead = fread (Buffer, 1, 65536, File)) > 0) {
-    for (i = 0; i < BytesRead; i++) {
-      if (IsPrintable (Buffer[i])) {
-        //
-        // Add to current string
-        //
-        if (StringLen < 65535) {
-          StringBuf[StringLen++] = Buffer[i];
-        }
-      } else {
-        //
-        // End of string - print if long enough
-        //
-        if (StringLen >= gOptions.MinLength) {
-          StringBuf[StringLen] = '\0';
-
-          if (gOptions.PrintFileName) {
-            printf ("%s: ", FileName);
-          }
-
-          if (gOptions.PrintOffset) {
-            PrintOffset (Offset + i - StringLen);
-          }
-
-          printf ("%s\n", StringBuf);
-        }
-
-        StringLen = 0;
+  for (i = 0; i < Size; i++) {
+    if (IsPrintable (Data[i])) {
+      if (StringLength == 0) {
+        StringStart = i;
       }
-    }
+      if (StringLength < (INT32)sizeof (Buffer) - 1) {
+        Buffer[StringLength] = Data[i];
+      }
+      StringLength++;
+    } else {
+      //
+      // End of string
+      //
+      if (StringLength >= gOptions.MinLength) {
+        //
+        // Null-terminate
+        //
+        if (StringLength >= (INT32)sizeof (Buffer)) {
+          StringLength = (INT32)sizeof (Buffer) - 1;
+        }
+        Buffer[StringLength] = '\0';
 
-    Offset += BytesRead;
+        //
+        // Print file name if requested
+        //
+        if (gOptions.PrintFileName) {
+          printf ("%s: ", FileName);
+        }
+
+        //
+        // Print offset if requested
+        //
+        if (gOptions.PrintOffset) {
+          if (gOptions.Radix == 8) {
+            printf ("%7llo ", (unsigned long long)StringStart);
+          } else if (gOptions.Radix == 16) {
+            printf ("%7llx ", (unsigned long long)StringStart);
+          } else {
+            printf ("%7llu ", (unsigned long long)StringStart);
+          }
+        }
+
+        printf ("%s\n", Buffer);
+      }
+
+      StringStart  = 0;
+      StringLength = 0;
+    }
   }
 
   //
   // Handle string at end of file
   //
-  if (StringLen >= gOptions.MinLength) {
-    StringBuf[StringLen] = '\0';
+  if (StringLength >= gOptions.MinLength) {
+    if (StringLength >= (INT32)sizeof (Buffer)) {
+      StringLength = (INT32)sizeof (Buffer) - 1;
+    }
+    Buffer[StringLength] = '\0';
 
     if (gOptions.PrintFileName) {
       printf ("%s: ", FileName);
     }
 
     if (gOptions.PrintOffset) {
-      PrintOffset (Offset - StringLen);
+      if (gOptions.Radix == 8) {
+        printf ("%7llo ", (unsigned long long)StringStart);
+      } else if (gOptions.Radix == 16) {
+        printf ("%7llx ", (unsigned long long)StringStart);
+      } else {
+        printf ("%7llu ", (unsigned long long)StringStart);
+      }
     }
 
-    printf ("%s\n", StringBuf);
+    printf ("%s\n", Buffer);
+  }
+}
+
+/**
+  Process a file and extract strings.
+**/
+STATIC
+INT32
+ProcessFile (
+  IN CONST CHAR8  *FileName
+  )
+{
+  BINFORMAT_STREAM  Stream;
+  BINFORMAT_STATUS  Status;
+  UINT8             *Data;
+
+  //
+  // Initialize stream from file (load entire file)
+  //
+  Status = BinFormatStreamInitFile (&Stream, FileName, BINFORMAT_STREAM_READ);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "strings: %s: Cannot read file\n", FileName);
+    return 1;
   }
 
-  free (StringBuf);
-  free (Buffer);
-  fclose (File);
+  //
+  // Get direct pointer to data
+  //
+  Data = (UINT8 *)BinFormatStreamGetDataPointer (&Stream);
+  if (Data == NULL) {
+    fprintf (stderr, "strings: %s: Cannot access file data\n", FileName);
+    BinFormatStreamClose (&Stream);
+    return 1;
+  }
+
+  //
+  // Extract strings
+  //
+  ExtractStrings (FileName, Data, Stream.Size);
+
+  //
+  // Close stream
+  //
+  BinFormatStreamClose (&Stream);
+
   return 0;
 }
 
@@ -217,74 +205,49 @@ ProcessFile (
 **/
 INT32
 main (
-  IN INT32   argc,
-  IN char    **argv
+  INT32   argc,
+  CHAR8   **argv
   )
 {
-  INT32    opt;
-  INT32    i;
-  BOOLEAN  Success;
+  INT32  c;
+  INT32  option_index;
+  INT32  result = 0;
 
-  STATIC struct option long_options[] = {
-    {"all",             no_argument,       0, 'a'},
-    {"data",            no_argument,       0, 'd'},
-    {"print-file-name", no_argument,       0, 'f'},
+  static struct option long_options[] = {
     {"bytes",           required_argument, 0, 'n'},
     {"radix",           required_argument, 0, 't'},
-    {"encoding",        required_argument, 0, 'e'},
+    {"print-file-name", no_argument,       0, 'f'},
     {"help",            no_argument,       0, 'h'},
     {"version",         no_argument,       0, 'V'},
     {0, 0, 0, 0}
   };
 
-  Success = TRUE;
-
-  //
-  // Parse options
-  //
-  while ((opt = getopt_long (argc, argv, "adfn:t:oe:hV", long_options, NULL)) != -1) {
-    switch (opt) {
-      case 'a':
-        gOptions.ScanWholeFile = TRUE;
-        gOptions.ScanDataOnly  = FALSE;
-        break;
-      case 'd':
-        gOptions.ScanDataOnly  = TRUE;
-        gOptions.ScanWholeFile = FALSE;
-        break;
-      case 'f':
-        gOptions.PrintFileName = TRUE;
-        break;
+  while ((c = getopt_long (argc, argv, "n:t:fhV", long_options, &option_index)) != -1) {
+    switch (c) {
       case 'n':
         gOptions.MinLength = atoi (optarg);
         if (gOptions.MinLength < 1) {
-          fprintf (stderr, "strings: invalid minimum string length: %s\n", optarg);
-          return 1;
+          gOptions.MinLength = 1;
         }
         break;
       case 't':
-        gOptions.OffsetFormat = optarg[0];
-        gOptions.PrintOffset  = TRUE;
-        if (gOptions.OffsetFormat != 'o' &&
-            gOptions.OffsetFormat != 'd' &&
-            gOptions.OffsetFormat != 'x') {
-          fprintf (stderr, "strings: invalid radix: %s\n", optarg);
-          return 1;
+        gOptions.PrintOffset = TRUE;
+        if (strcmp (optarg, "o") == 0) {
+          gOptions.Radix = 8;
+        } else if (strcmp (optarg, "d") == 0) {
+          gOptions.Radix = 10;
+        } else if (strcmp (optarg, "x") == 0) {
+          gOptions.Radix = 16;
         }
         break;
-      case 'o':
-        gOptions.OffsetFormat = 'o';
-        gOptions.PrintOffset  = TRUE;
-        break;
-      case 'e':
-        gOptions.Encoding = optarg[0];
+      case 'f':
+        gOptions.PrintFileName = TRUE;
         break;
       case 'h':
         PrintUsage (argv[0]);
         return 0;
       case 'V':
-        printf ("strings (MMIX toolchain) version 1.0\n");
-        printf ("Print printable strings from files\n");
+        printf ("strings (MMIX toolchain) 1.0\n");
         return 0;
       default:
         PrintUsage (argv[0]);
@@ -292,19 +255,18 @@ main (
     }
   }
 
-  //
-  // Process files
-  //
   if (optind >= argc) {
-    fprintf (stderr, "strings: no input files\n");
+    fprintf (stderr, "strings: No input files specified\n");
+    PrintUsage (argv[0]);
     return 1;
   }
 
-  for (i = optind; i < argc; i++) {
-    if (ProcessFile (argv[i]) != 0) {
-      Success = FALSE;
-    }
+  //
+  // Process each file
+  //
+  for (INT32 i = optind; i < argc; i++) {
+    result |= ProcessFile (argv[i]);
   }
 
-  return Success ? 0 : 1;
+  return result;
 }

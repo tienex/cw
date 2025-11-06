@@ -76,63 +76,11 @@ PrintUsage (
   printf ("  B  BSS (uninitialized data) symbol\n");
   printf ("  C  Common symbol\n");
   printf ("  D  Initialized data symbol\n");
-  printf ("  G  Initialized data symbol (small)\n");
-  printf ("  I  Indirect reference to another symbol\n");
-  printf ("  N  Debugging symbol\n");
-  printf ("  R  Read-only data symbol\n");
-  printf ("  S  Uninitialized data symbol (small)\n");
   printf ("  T  Text (code) symbol\n");
   printf ("  U  Undefined symbol\n");
-  printf ("  V  Weak object\n");
   printf ("  W  Weak symbol\n");
-  printf ("  -  Stabs symbol\n");
   printf ("  ?  Unknown symbol type\n\n");
   printf ("Lowercase letters indicate local symbols.\n");
-}
-
-/**
-  Get symbol type character.
-**/
-STATIC
-CHAR8
-GetSymbolType (
-  IN BINFORMAT_SYMBOL  *Symbol
-  )
-{
-  CHAR8  Type;
-
-  if (Symbol->Flags & BINFORMAT_SYM_UNDEFINED) {
-    Type = 'U';
-  } else if (Symbol->Flags & BINFORMAT_SYM_ABSOLUTE) {
-    Type = 'A';
-  } else if (Symbol->Flags & BINFORMAT_SYM_BSS) {
-    Type = 'B';
-  } else if (Symbol->Flags & BINFORMAT_SYM_COMMON) {
-    Type = 'C';
-  } else if (Symbol->Flags & BINFORMAT_SYM_DATA) {
-    Type = 'D';
-  } else if (Symbol->Flags & BINFORMAT_SYM_TEXT) {
-    Type = 'T';
-  } else if (Symbol->Flags & BINFORMAT_SYM_RODATA) {
-    Type = 'R';
-  } else if (Symbol->Flags & BINFORMAT_SYM_DEBUG) {
-    Type = 'N';
-  } else if (Symbol->Flags & BINFORMAT_SYM_WEAK) {
-    Type = (Symbol->Flags & BINFORMAT_SYM_UNDEFINED) ? 'w' : 'W';
-  } else {
-    Type = '?';
-  }
-
-  //
-  // Lowercase for local symbols
-  //
-  if (!(Symbol->Flags & BINFORMAT_SYM_GLOBAL)) {
-    if (Type >= 'A' && Type <= 'Z') {
-      Type = Type + ('a' - 'A');
-    }
-  }
-
-  return Type;
 }
 
 /**
@@ -147,25 +95,20 @@ PrintSymbolBSD (
 {
   CHAR8  Type;
 
-  Type = GetSymbolType (Symbol);
+  Type = BinFormatGetSymbolTypeChar (Symbol);
 
   if (gOptions.PrintFileName) {
     printf ("%s:", FileName);
   }
 
-  if (Type == 'U' || Type == 'w') {
-    printf ("                ");
+  //
+  // For undefined symbols, don't print address
+  //
+  if (Symbol->SectionIndex == 0) {
+    printf ("                 %c %s\n", Type, Symbol->Name);
   } else {
-    printf ("%016llx", (unsigned long long)Symbol->Value);
+    printf ("%016llx %c %s\n", (unsigned long long)Symbol->Value, Type, Symbol->Name);
   }
-
-  printf (" %c %s", Type, Symbol->Name);
-
-  if (gOptions.SizeSort && Symbol->Size > 0) {
-    printf (" %llu", (unsigned long long)Symbol->Size);
-  }
-
-  printf ("\n");
 }
 
 /**
@@ -180,22 +123,17 @@ PrintSymbolPOSIX (
 {
   CHAR8  Type;
 
-  Type = GetSymbolType (Symbol);
+  Type = BinFormatGetSymbolTypeChar (Symbol);
 
   if (gOptions.PrintFileName) {
     printf ("%s: ", FileName);
   }
 
-  printf ("%s %c", Symbol->Name, Type);
-
-  if (Type != 'U' && Type != 'w') {
-    printf (" %016llx", (unsigned long long)Symbol->Value);
-    if (Symbol->Size > 0) {
-      printf (" %016llx", (unsigned long long)Symbol->Size);
-    }
-  }
-
-  printf ("\n");
+  printf ("%s %c %016llx %llu\n",
+    Symbol->Name,
+    Type,
+    (unsigned long long)Symbol->Value,
+    (unsigned long long)Symbol->Size);
 }
 
 /**
@@ -208,127 +146,105 @@ PrintSymbolSysV (
   IN BINFORMAT_SYMBOL  *Symbol
   )
 {
-  CHAR8  Type;
-
-  Type = GetSymbolType (Symbol);
+  (VOID)FileName;
 
   printf ("%-20s|%016llx|   %c  |",
-          Symbol->Name,
-          (unsigned long long)Symbol->Value,
-          Type);
+    Symbol->Name,
+    (unsigned long long)Symbol->Value,
+    BinFormatGetSymbolTypeChar (Symbol));
 
-  if (Symbol->Size > 0) {
-    printf ("%16llu|", (unsigned long long)Symbol->Size);
-  } else {
-    printf ("                |");
-  }
-
-  printf ("\n");
+  printf ("%18s|%12s|%llu\n",
+    BinFormatGetSymbolTypeName (Symbol->Type),
+    BinFormatGetSymbolBindName (Symbol->Bind),
+    (unsigned long long)Symbol->Size);
 }
 
 /**
-  Process a single object file.
+  Process a binary file and list its symbols.
 **/
 STATIC
-BINFORMAT_STATUS
+INT32
 ProcessFile (
   IN CONST CHAR8  *FileName
   )
 {
-  BINFORMAT_CONTEXT  Context;
-  BINFORMAT_STATUS   Status;
-  BINFORMAT_SYMBOL   Symbol;
-  UINT32             Index;
-  UINT32             Count;
+  CONST BINFORMAT_API  *Api;
+  BINFORMAT_CONTEXT    *Context;
+  BINFORMAT_STATUS     Status;
+  BINFORMAT_HEADER_INFO HeaderInfo;
+  BINFORMAT_SYMBOL     Symbol;
+  UINT32               i;
 
   //
-  // Try each format library
+  // Auto-detect format and initialize
   //
-  Status = ElfGetApi()->InitFile (&Context, FileName);
-  if (Status == BINFORMAT_SUCCESS) {
-    goto ProcessSymbols;
+  Api = BinFormatDetectFile (FileName, &Context, TRUE);
+  if (Api == NULL) {
+    fprintf (stderr, "nm: %s: File format not recognized\n", FileName);
+    return 1;
   }
 
-  Status = AoutGetApi()->InitFile (&Context, FileName);
-  if (Status == BINFORMAT_SUCCESS) {
-    goto ProcessSymbols;
-  }
-
-  Status = CoffGetApi()->InitFile (&Context, FileName);
-  if (Status == BINFORMAT_SUCCESS) {
-    goto ProcessSymbols;
-  }
-
-  Status = MachoGetApi()->InitFile (&Context, FileName);
-  if (Status == BINFORMAT_SUCCESS) {
-    goto ProcessSymbols;
-  }
-
-  fprintf (stderr, "nm: %s: File format not recognized\n", FileName);
-  return BINFORMAT_ERROR_INVALID_FORMAT;
-
-ProcessSymbols:
   //
-  // Print file header for SysV format
+  // Get header information
+  //
+  Status = Api->GetHeader (Context, &HeaderInfo);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "nm: %s: Failed to get header\n", FileName);
+    Api->Close (Context);
+    return 1;
+  }
+
+  //
+  // Print header for SysV format
   //
   if (strcmp (gOptions.Format, "sysv") == 0) {
     printf ("\n\nSymbols from %s:\n\n", FileName);
-    printf ("Name                  Value           Class        Size            \n");
-    printf ("================================================================================\n");
-  } else if (gOptions.PrintFileName && strcmp (gOptions.Format, "bsd") == 0) {
-    printf ("\n%s:\n", FileName);
+    printf ("Name                 |Value           |Class|Type              |Binding      |Size\n");
+    printf ("---------------------|----------------|-----|------------------|-------------|----\n");
   }
 
   //
-  // Iterate through all symbols
+  // Iterate through symbols
   //
-  Index = 0;
-  Count = 0;
-  while (Context.Api->GetSymbol (&Context, Index, &Symbol) == BINFORMAT_SUCCESS) {
+  for (i = 0; i < HeaderInfo.SymbolCount; i++) {
+    Status = Api->GetSymbol (Context, i, &Symbol);
+    if (BINFORMAT_IS_ERROR (Status)) {
+      continue;
+    }
+
     //
     // Apply filters
     //
-    if (gOptions.ExternalOnly && !(Symbol.Flags & BINFORMAT_SYM_GLOBAL)) {
-      Index++;
+    if (gOptions.ExternalOnly && Symbol.Bind != BinSymbolBindGlobal) {
       continue;
     }
 
-    if (gOptions.UndefinedOnly && !(Symbol.Flags & BINFORMAT_SYM_UNDEFINED)) {
-      Index++;
+    if (gOptions.UndefinedOnly && Symbol.SectionIndex != 0) {
       continue;
     }
 
-    if (gOptions.DefinedOnly && (Symbol.Flags & BINFORMAT_SYM_UNDEFINED)) {
-      Index++;
+    if (gOptions.DefinedOnly && Symbol.SectionIndex == 0) {
       continue;
     }
 
-    if (!gOptions.DebugSymbols && (Symbol.Flags & BINFORMAT_SYM_DEBUG)) {
-      Index++;
+    if (!gOptions.DebugSymbols && Symbol.Type == BinSymbolTypeFile) {
       continue;
     }
 
     //
     // Print symbol based on format
     //
-    if (strcmp (gOptions.Format, "posix") == 0) {
-      PrintSymbolPOSIX (FileName, &Symbol);
-    } else if (strcmp (gOptions.Format, "sysv") == 0) {
+    if (strcmp (gOptions.Format, "sysv") == 0) {
       PrintSymbolSysV (FileName, &Symbol);
+    } else if (strcmp (gOptions.Format, "posix") == 0) {
+      PrintSymbolPOSIX (FileName, &Symbol);
     } else {
       PrintSymbolBSD (FileName, &Symbol);
     }
-
-    Count++;
-    Index++;
   }
 
-  if (Count == 0 && strcmp (gOptions.Format, "sysv") != 0) {
-    printf ("nm: %s: no symbols\n", FileName);
-  }
-
-  Context.Api->Close (&Context);
-  return BINFORMAT_SUCCESS;
+  Api->Close (Context);
+  return 0;
 }
 
 /**
@@ -336,42 +252,35 @@ ProcessSymbols:
 **/
 INT32
 main (
-  IN INT32   argc,
-  IN CHAR8   **argv
+  INT32   argc,
+  CHAR8   **argv
   )
 {
-  INT32   opt;
-  INT32   FileCount;
-  INT32   i;
-  BOOLEAN Success;
+  INT32  c;
+  INT32  option_index;
+  INT32  result = 0;
 
-  STATIC struct option long_options[] = {
-    {"debug-syms",      no_argument,       0, 'a'},
-    {"extern-only",     no_argument,       0, 'g'},
-    {"undefined-only",  no_argument,       0, 'u'},
-    {"numeric-sort",    no_argument,       0, 'n'},
-    {"no-sort",         no_argument,       0, 'p'},
-    {"reverse-sort",    no_argument,       0, 'r'},
-    {"print-size",      no_argument,       0, 'S'},
-    {"size-sort",       no_argument,       0, 's'},
-    {"print-file-name", no_argument,       0, 'A'},
-    {"demangle",        no_argument,       0, 'C'},
-    {"dynamic",         no_argument,       0, 'D'},
-    {"defined-only",    no_argument,       0, 'd'},
-    {"format",          required_argument, 0, 'f'},
-    {"help",            no_argument,       0, 'h'},
-    {"version",         no_argument,       0, 'V'},
+  static struct option long_options[] = {
+    {"debug-syms",       no_argument,       0, 'a'},
+    {"extern-only",      no_argument,       0, 'g'},
+    {"undefined-only",   no_argument,       0, 'u'},
+    {"numeric-sort",     no_argument,       0, 'n'},
+    {"no-sort",          no_argument,       0, 'p'},
+    {"reverse-sort",     no_argument,       0, 'r'},
+    {"print-size",       no_argument,       0, 'S'},
+    {"size-sort",        no_argument,       0, 1000},
+    {"print-file-name",  no_argument,       0, 'A'},
+    {"demangle",         no_argument,       0, 'C'},
+    {"dynamic",          no_argument,       0, 'D'},
+    {"defined-only",     no_argument,       0, 1001},
+    {"format",           required_argument, 0, 'f'},
+    {"help",             no_argument,       0, 'h'},
+    {"version",          no_argument,       0, 'V'},
     {0, 0, 0, 0}
   };
 
-  FileCount = 0;
-  Success   = TRUE;
-
-  //
-  // Parse options
-  //
-  while ((opt = getopt_long (argc, argv, "aguSnprACDdf:hV", long_options, NULL)) != -1) {
-    switch (opt) {
+  while ((c = getopt_long (argc, argv, "aguнprSACDf:hV", long_options, &option_index)) != -1) {
+    switch (c) {
       case 'a':
         gOptions.DebugSymbols = TRUE;
         break;
@@ -391,7 +300,9 @@ main (
         gOptions.ReverseSort = TRUE;
         break;
       case 'S':
-      case 's':
+        // Size printing is always enabled in our output
+        break;
+      case 1000:
         gOptions.SizeSort = TRUE;
         break;
       case 'A':
@@ -403,24 +314,17 @@ main (
       case 'D':
         gOptions.Dynamic = TRUE;
         break;
-      case 'd':
+      case 1001:
         gOptions.DefinedOnly = TRUE;
         break;
       case 'f':
         gOptions.Format = optarg;
-        if (strcmp (optarg, "bsd") != 0 &&
-            strcmp (optarg, "sysv") != 0 &&
-            strcmp (optarg, "posix") != 0) {
-          fprintf (stderr, "nm: invalid format: %s\n", optarg);
-          return 1;
-        }
         break;
       case 'h':
         PrintUsage (argv[0]);
         return 0;
       case 'V':
-        printf ("nm (MMIX toolchain) version 1.0\n");
-        printf ("Universal symbol lister for ELF, a.out, COFF, Mach-O, OMF\n");
+        printf ("nm (MMIX toolchain) 1.0\n");
         return 0;
       default:
         PrintUsage (argv[0]);
@@ -428,20 +332,21 @@ main (
     }
   }
 
-  //
-  // Process files
-  //
   if (optind >= argc) {
-    fprintf (stderr, "nm: no input files\n");
+    fprintf (stderr, "nm: No input files specified\n");
+    PrintUsage (argv[0]);
     return 1;
   }
 
-  for (i = optind; i < argc; i++) {
-    if (ProcessFile (argv[i]) != BINFORMAT_SUCCESS) {
-      Success = FALSE;
+  //
+  // Process each file
+  //
+  for (INT32 i = optind; i < argc; i++) {
+    if (argc - optind > 1) {
+      printf ("\n%s:\n", argv[i]);
     }
-    FileCount++;
+    result |= ProcessFile (argv[i]);
   }
 
-  return Success ? 0 : 1;
+  return result;
 }

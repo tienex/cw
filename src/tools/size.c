@@ -93,62 +93,67 @@ PrintSize (
 STATIC
 VOID
 ProcessFileBerkeley (
-  IN CONST CHAR8          *FileName,
-  IN BINFORMAT_CONTEXT    *Context
+  IN CONST CHAR8               *FileName,
+  IN CONST BINFORMAT_API       *Api,
+  IN BINFORMAT_CONTEXT         *Context,
+  IN BINFORMAT_HEADER_INFO     *HeaderInfo
   )
 {
   BINFORMAT_SECTION  Section;
-  UINT32             Index;
-  UINT64             TextSize;
-  UINT64             DataSize;
-  UINT64             BssSize;
-  UINT64             Total;
-
-  TextSize = 0;
-  DataSize = 0;
-  BssSize  = 0;
+  BINFORMAT_STATUS   Status;
+  UINT64             TextSize = 0;
+  UINT64             DataSize = 0;
+  UINT64             BssSize  = 0;
+  UINT64             TotalSize;
+  UINT32             i;
 
   //
-  // Sum up section sizes
+  // Iterate through sections and categorize them
   //
-  Index = 0;
-  while (Context->Api->GetSection (Context, Index, &Section) == BINFORMAT_SUCCESS) {
-    if (Section.Flags & BINFORMAT_SEC_CODE) {
-      TextSize += Section.Size;
-    } else if (Section.Flags & BINFORMAT_SEC_DATA) {
-      if (Section.Flags & BINFORMAT_SEC_BSS) {
-        BssSize += Section.Size;
-      } else {
-        DataSize += Section.Size;
-      }
-    } else if (Section.Flags & BINFORMAT_SEC_BSS) {
-      BssSize += Section.Size;
+  for (i = 0; i < HeaderInfo->SectionCount; i++) {
+    Status = Api->GetSection (Context, i, &Section);
+    if (BINFORMAT_IS_ERROR (Status)) {
+      continue;
     }
-    Index++;
+
+    //
+    // Skip sections that don't occupy memory
+    //
+    if (!(Section.Flags & BINFORMAT_SECTION_FLAG_ALLOC)) {
+      continue;
+    }
+
+    //
+    // Categorize based on section flags
+    //
+    if (Section.Flags & BINFORMAT_SECTION_FLAG_EXEC) {
+      TextSize += Section.Size;
+    } else if (Section.Type == BinSectionTypeNoBits) {
+      BssSize += Section.Size;
+    } else if (Section.Flags & BINFORMAT_SECTION_FLAG_WRITE) {
+      DataSize += Section.Size;
+    } else {
+      //
+      // Read-only data counts as text
+      //
+      TextSize += Section.Size;
+    }
   }
 
-  Total = TextSize + DataSize + BssSize;
+  TotalSize = TextSize + DataSize + BssSize;
 
   //
-  // Print Berkeley format
+  // Print in Berkeley format
   //
   printf ("   ");
   PrintSize (TextSize);
   printf ("\t   ");
   PrintSize (DataSize);
-  printf ("\t   ");
+  printf ("\t    ");
   PrintSize (BssSize);
-  printf ("\t   ");
-  PrintSize (Total);
-  printf ("\t   ");
-  if (gOptions.Format == 16) {
-    printf ("0x%llx", (unsigned long long)Total);
-  } else if (gOptions.Format == 8) {
-    printf ("%llo", (unsigned long long)Total);
-  } else {
-    printf ("%llu", (unsigned long long)Total);
-  }
-  printf ("\t%s\n", FileName);
+  printf ("\t    ");
+  PrintSize (TotalSize);
+  printf ("\t%llu\t%s\n", (unsigned long long)TotalSize, FileName);
 }
 
 /**
@@ -157,85 +162,96 @@ ProcessFileBerkeley (
 STATIC
 VOID
 ProcessFileSysV (
-  IN CONST CHAR8          *FileName,
-  IN BINFORMAT_CONTEXT    *Context
+  IN CONST CHAR8               *FileName,
+  IN CONST BINFORMAT_API       *Api,
+  IN BINFORMAT_CONTEXT         *Context,
+  IN BINFORMAT_HEADER_INFO     *HeaderInfo
   )
 {
   BINFORMAT_SECTION  Section;
-  UINT32             Index;
-  UINT64             Total;
+  BINFORMAT_STATUS   Status;
+  UINT64             TotalSize = 0;
+  UINT32             i;
 
   printf ("%s  :\n", FileName);
   printf ("section              size      addr\n");
 
-  Total = 0;
-  Index = 0;
-  while (Context->Api->GetSection (Context, Index, &Section) == BINFORMAT_SUCCESS) {
+  //
+  // Iterate through all sections
+  //
+  for (i = 0; i < HeaderInfo->SectionCount; i++) {
+    Status = Api->GetSection (Context, i, &Section);
+    if (BINFORMAT_IS_ERROR (Status)) {
+      continue;
+    }
+
+    //
+    // Only print sections that occupy space
+    //
+    if (Section.Size == 0) {
+      continue;
+    }
+
     printf ("%-20s ", Section.Name);
     PrintSize (Section.Size);
     printf ("      ");
-    PrintSize (Section.Address);
+    PrintSize (Section.VirtualAddress);
     printf ("\n");
 
-    if (!(Section.Flags & BINFORMAT_SEC_BSS)) {
-      Total += Section.Size;
+    if (Section.Flags & BINFORMAT_SECTION_FLAG_ALLOC) {
+      TotalSize += Section.Size;
     }
-
-    Index++;
   }
 
-  printf ("%-20s ", "Total");
-  PrintSize (Total);
+  printf ("Total                ");
+  PrintSize (TotalSize);
   printf ("\n\n");
 }
 
 /**
-  Process a single object file.
+  Process a binary file and display its sizes.
 **/
 STATIC
-BINFORMAT_STATUS
+INT32
 ProcessFile (
   IN CONST CHAR8  *FileName
   )
 {
-  BINFORMAT_CONTEXT  Context;
-  BINFORMAT_STATUS   Status;
+  CONST BINFORMAT_API  *Api;
+  BINFORMAT_CONTEXT    *Context;
+  BINFORMAT_STATUS     Status;
+  BINFORMAT_HEADER_INFO HeaderInfo;
 
   //
-  // Try each format library
+  // Auto-detect format and initialize
   //
-  Status = ElfGetApi()->InitFile (&Context, FileName);
-  if (Status == BINFORMAT_SUCCESS) {
-    goto ProcessSections;
+  Api = BinFormatDetectFile (FileName, &Context, TRUE);
+  if (Api == NULL) {
+    fprintf (stderr, "size: %s: File format not recognized\n", FileName);
+    return 1;
   }
 
-  Status = AoutGetApi()->InitFile (&Context, FileName);
-  if (Status == BINFORMAT_SUCCESS) {
-    goto ProcessSections;
+  //
+  // Get header information
+  //
+  Status = Api->GetHeader (Context, &HeaderInfo);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "size: %s: Failed to get header\n", FileName);
+    Api->Close (Context);
+    return 1;
   }
 
-  Status = CoffGetApi()->InitFile (&Context, FileName);
-  if (Status == BINFORMAT_SUCCESS) {
-    goto ProcessSections;
-  }
-
-  Status = MachoGetApi()->InitFile (&Context, FileName);
-  if (Status == BINFORMAT_SUCCESS) {
-    goto ProcessSections;
-  }
-
-  fprintf (stderr, "size: %s: File format not recognized\n", FileName);
-  return BINFORMAT_ERROR_INVALID_FORMAT;
-
-ProcessSections:
+  //
+  // Process based on format
+  //
   if (gOptions.SysV) {
-    ProcessFileSysV (FileName, &Context);
+    ProcessFileSysV (FileName, Api, Context, &HeaderInfo);
   } else {
-    ProcessFileBerkeley (FileName, &Context);
+    ProcessFileBerkeley (FileName, Api, Context, &HeaderInfo);
   }
 
-  Context.Api->Close (&Context);
-  return BINFORMAT_SUCCESS;
+  Api->Close (Context);
+  return 0;
 }
 
 /**
@@ -243,71 +259,71 @@ ProcessSections:
 **/
 INT32
 main (
-  IN INT32   argc,
-  IN CHAR8   **argv
+  INT32   argc,
+  CHAR8   **argv
   )
 {
-  INT32   opt;
-  INT32   i;
-  BOOLEAN Success;
-  BOOLEAN PrintedHeader;
+  INT32  c;
+  INT32  option_index;
+  INT32  result = 0;
 
-  STATIC struct option long_options[] = {
-    {"format",   required_argument, 0, 'A'},
-    {"radix",    required_argument, 0, 'r'},
-    {"totals",   no_argument,       0, 't'},
-    {"help",     no_argument,       0, 'h'},
-    {"version",  no_argument,       0, 'V'},
+  static struct option long_options[] = {
+    {"format",  required_argument, 0, 'F'},
+    {"radix",   required_argument, 0, 'R'},
+    {"totals",  no_argument,       0, 't'},
+    {"help",    no_argument,       0, 'h'},
+    {"version", no_argument,       0, 'V'},
     {0, 0, 0, 0}
   };
 
-  Success       = TRUE;
-  PrintedHeader = FALSE;
-
-  //
-  // Parse options
-  //
-  while ((opt = getopt_long (argc, argv, "ABodxr:thV", long_options, NULL)) != -1) {
-    switch (opt) {
+  while ((c = getopt_long (argc, argv, "ABodxthV", long_options, &option_index)) != -1) {
+    switch (c) {
       case 'A':
-        gOptions.SysV     = TRUE;
+        gOptions.SysV = TRUE;
         gOptions.Berkeley = FALSE;
-        if (optarg && strcmp (optarg, "berkeley") == 0) {
-          gOptions.Berkeley = TRUE;
-          gOptions.SysV     = FALSE;
-        }
         break;
       case 'B':
         gOptions.Berkeley = TRUE;
-        gOptions.SysV     = FALSE;
+        gOptions.SysV = FALSE;
+        break;
+      case 'F':
+        if (strcmp (optarg, "sysv") == 0 || strcmp (optarg, "sysv") == 0) {
+          gOptions.SysV = TRUE;
+          gOptions.Berkeley = FALSE;
+        } else if (strcmp (optarg, "berkeley") == 0 || strcmp (optarg, "bsd") == 0) {
+          gOptions.Berkeley = TRUE;
+          gOptions.SysV = FALSE;
+        }
         break;
       case 'o':
-      case 'r':
-        if (optarg) {
-          gOptions.Format = atoi (optarg);
-        } else {
+      case 'R':
+        if (c == 'o' || (optarg && strcmp (optarg, "8") == 0)) {
           gOptions.Format = 8;
-        }
-        if (gOptions.Format != 8 && gOptions.Format != 10 && gOptions.Format != 16) {
-          fprintf (stderr, "size: invalid radix: %d\n", gOptions.Format);
-          return 1;
+          gOptions.Octal = TRUE;
+        } else if (optarg && strcmp (optarg, "10") == 0) {
+          gOptions.Format = 10;
+          gOptions.Decimal = TRUE;
+        } else if (optarg && strcmp (optarg, "16") == 0) {
+          gOptions.Format = 16;
+          gOptions.Hex = TRUE;
         }
         break;
       case 'd':
         gOptions.Format = 10;
+        gOptions.Decimal = TRUE;
         break;
       case 'x':
         gOptions.Format = 16;
+        gOptions.Hex = TRUE;
         break;
       case 't':
-        // Totals - currently ignored
+        // Totals are always printed in Berkeley format
         break;
       case 'h':
         PrintUsage (argv[0]);
         return 0;
       case 'V':
-        printf ("size (MMIX toolchain) version 1.0\n");
-        printf ("Universal size lister for ELF, a.out, COFF, Mach-O, OMF\n");
+        printf ("size (MMIX toolchain) 1.0\n");
         return 0;
       default:
         PrintUsage (argv[0]);
@@ -315,27 +331,25 @@ main (
     }
   }
 
-  //
-  // Process files
-  //
   if (optind >= argc) {
-    fprintf (stderr, "size: no input files\n");
+    fprintf (stderr, "size: No input files specified\n");
+    PrintUsage (argv[0]);
     return 1;
   }
 
   //
-  // Print header for Berkeley format
+  // Print Berkeley header
   //
-  if (gOptions.Berkeley && !PrintedHeader) {
+  if (gOptions.Berkeley) {
     printf ("   text\t   data\t    bss\t    dec\t    hex\tfilename\n");
-    PrintedHeader = TRUE;
   }
 
-  for (i = optind; i < argc; i++) {
-    if (ProcessFile (argv[i]) != BINFORMAT_SUCCESS) {
-      Success = FALSE;
-    }
+  //
+  // Process each file
+  //
+  for (INT32 i = optind; i < argc; i++) {
+    result |= ProcessFile (argv[i]);
   }
 
-  return Success ? 0 : 1;
+  return result;
 }
