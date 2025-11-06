@@ -1740,14 +1740,315 @@ ElfGetNote (
   return BINFORMAT_SUCCESS;
 }
 
-//
-// Stub implementations for unsupported operations
-//
-STATIC BINFORMAT_STATUS ElfAddSection(IN BINFORMAT_CONTEXT *Ctx, IN BINFORMAT_SECTION *Sec, OUT UINT32 *Idx) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
-STATIC BINFORMAT_STATUS ElfAddSymbol(IN BINFORMAT_CONTEXT *Ctx, IN BINFORMAT_SYMBOL *Sym, OUT UINT32 *Idx) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
-STATIC BINFORMAT_STATUS ElfAddRelocation(IN BINFORMAT_CONTEXT *Ctx, IN UINT32 SecIdx, IN BINFORMAT_RELOCATION *Rel) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
-STATIC BINFORMAT_STATUS ElfWriteFile(IN BINFORMAT_CONTEXT *Ctx, IN CONST CHAR8 *Path) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
-STATIC BINFORMAT_STATUS ElfWriteMemory(IN BINFORMAT_CONTEXT *Ctx, OUT VOID *Buf, IN UINT64 Size, OUT UINT64 *Written) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
+/**
+  Write ELF file to disk.
+
+  @param[in]  Context   ELF context.
+  @param[in]  FilePath  Path to output file.
+
+  @retval BINFORMAT_SUCCESS       File written successfully.
+  @retval BINFORMAT_ERROR_*       Error occurred.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfWriteFile (
+  IN  BINFORMAT_CONTEXT  *Context,
+  IN  CONST CHAR8        *FilePath
+  )
+{
+  ELF_CONTEXT  *ElfCtx;
+  FILE         *File;
+  UINT64       Written;
+
+  if (Context == NULL || FilePath == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  ElfCtx = ELF_CONTEXT_FROM_BINFORMAT(Context);
+
+  if (ElfCtx->FileData == NULL || ElfCtx->FileSize == 0) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  //
+  // Open output file
+  //
+  File = fopen(FilePath, "wb");
+  if (File == NULL) {
+    return BINFORMAT_ERROR_IO;
+  }
+
+  //
+  // Write entire file data
+  //
+  Written = fwrite(ElfCtx->FileData, 1, ElfCtx->FileSize, File);
+  fclose(File);
+
+  if (Written != ElfCtx->FileSize) {
+    return BINFORMAT_ERROR_IO;
+  }
+
+  return BINFORMAT_SUCCESS;
+}
+
+/**
+  Write ELF to memory buffer.
+
+  @param[in]   Context  ELF context.
+  @param[out]  Buffer   Output buffer.
+  @param[in]   Size     Buffer size.
+  @param[out]  Written  Bytes written.
+
+  @retval BINFORMAT_SUCCESS       Data written successfully.
+  @retval BINFORMAT_ERROR_*       Error occurred.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfWriteMemory (
+  IN  BINFORMAT_CONTEXT  *Context,
+  OUT VOID               *Buffer,
+  IN  UINT64             Size,
+  OUT UINT64             *Written
+  )
+{
+  ELF_CONTEXT  *ElfCtx;
+
+  if (Context == NULL || Buffer == NULL || Written == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  ElfCtx = ELF_CONTEXT_FROM_BINFORMAT(Context);
+
+  if (ElfCtx->FileData == NULL || ElfCtx->FileSize == 0) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  if (Size < ElfCtx->FileSize) {
+    return BINFORMAT_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  //
+  // Copy ELF data to output buffer
+  //
+  memcpy(Buffer, ElfCtx->FileData, ElfCtx->FileSize);
+  *Written = ElfCtx->FileSize;
+
+  return BINFORMAT_SUCCESS;
+}
+
+/**
+  Add new section to ELF file.
+
+  @param[in]   Context  ELF context.
+  @param[in]   Section  Section to add.
+  @param[out]  Index    Section index (optional).
+
+  @retval BINFORMAT_SUCCESS       Section added successfully.
+  @retval BINFORMAT_ERROR_*       Error occurred.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfAddSection (
+  IN  BINFORMAT_CONTEXT   *Context,
+  IN  BINFORMAT_SECTION   *Section,
+  OUT UINT32              *Index
+  )
+{
+  ELF_CONTEXT  *ElfCtx;
+  UINT32       SectionCount;
+  UINT64       OldSize;
+  UINT64       NewSize;
+  UINT64       ShdrSize;
+  UINT64       NewShoff;
+  UINT8        *NewData;
+
+  if (Context == NULL || Section == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  ElfCtx = ELF_CONTEXT_FROM_BINFORMAT(Context);
+
+  if (ElfCtx->ReadOnly) {
+    return BINFORMAT_ERROR_UNSUPPORTED;
+  }
+
+  SectionCount = ElfCtx->Is64Bit ? ElfCtx->Header.Elf64->e_shnum :
+                                   ElfCtx->Header.Elf32->e_shnum;
+
+  //
+  // Calculate new file size
+  //
+  ShdrSize = ElfCtx->Is64Bit ? sizeof(Elf64_Shdr) : sizeof(Elf32_Shdr);
+  OldSize = ElfCtx->FileSize;
+  NewSize = OldSize + ShdrSize + Section->Size;
+
+  //
+  // Reallocate buffer
+  //
+  NewData = (UINT8 *)realloc(ElfCtx->FileData, NewSize);
+  if (NewData == NULL) {
+    return BINFORMAT_ERROR_OUT_OF_MEMORY;
+  }
+
+  ElfCtx->FileData = NewData;
+  ElfCtx->FileSize = NewSize;
+
+  //
+  // Add section data at end
+  //
+  NewShoff = OldSize;
+  if (Section->Data != NULL && Section->Size > 0) {
+    memcpy(ElfCtx->FileData + NewShoff, Section->Data, Section->Size);
+  }
+
+  //
+  // Add section header
+  //
+  if (ElfCtx->Is64Bit) {
+    Elf64_Shdr NewShdr = {0};
+    NewShdr.sh_type = Section->Type;
+    NewShdr.sh_flags = Section->Flags;
+    NewShdr.sh_addr = Section->VirtualAddress;
+    NewShdr.sh_offset = NewShoff;
+    NewShdr.sh_size = Section->Size;
+    NewShdr.sh_link = Section->Link;
+    NewShdr.sh_info = Section->Info;
+    NewShdr.sh_addralign = Section->Alignment;
+    NewShdr.sh_entsize = Section->EntrySize;
+
+    // Reallocate section header table
+    ElfCtx->Sections.Elf64 = (Elf64_Shdr *)realloc(
+      ElfCtx->Sections.Elf64,
+      (SectionCount + 1) * sizeof(Elf64_Shdr)
+    );
+    if (ElfCtx->Sections.Elf64 == NULL) {
+      return BINFORMAT_ERROR_OUT_OF_MEMORY;
+    }
+
+    memcpy(&ElfCtx->Sections.Elf64[SectionCount], &NewShdr, sizeof(Elf64_Shdr));
+    ElfCtx->Header.Elf64->e_shnum = SectionCount + 1;
+  } else {
+    Elf32_Shdr NewShdr = {0};
+    NewShdr.sh_type = Section->Type;
+    NewShdr.sh_flags = (UINT32)Section->Flags;
+    NewShdr.sh_addr = (UINT32)Section->VirtualAddress;
+    NewShdr.sh_offset = (UINT32)NewShoff;
+    NewShdr.sh_size = (UINT32)Section->Size;
+    NewShdr.sh_link = Section->Link;
+    NewShdr.sh_info = Section->Info;
+    NewShdr.sh_addralign = (UINT32)Section->Alignment;
+    NewShdr.sh_entsize = (UINT32)Section->EntrySize;
+
+    ElfCtx->Sections.Elf32 = (Elf32_Shdr *)realloc(
+      ElfCtx->Sections.Elf32,
+      (SectionCount + 1) * sizeof(Elf32_Shdr)
+    );
+    if (ElfCtx->Sections.Elf32 == NULL) {
+      return BINFORMAT_ERROR_OUT_OF_MEMORY;
+    }
+
+    memcpy(&ElfCtx->Sections.Elf32[SectionCount], &NewShdr, sizeof(Elf32_Shdr));
+    ElfCtx->Header.Elf32->e_shnum = SectionCount + 1;
+  }
+
+  if (Index != NULL) {
+    *Index = SectionCount;
+  }
+
+  return BINFORMAT_SUCCESS;
+}
+
+/**
+  Add symbol to symbol table.
+
+  @param[in]   Context  ELF context.
+  @param[in]   Symbol   Symbol to add.
+  @param[out]  Index    Symbol index (optional).
+
+  @retval BINFORMAT_SUCCESS       Symbol added successfully.
+  @retval BINFORMAT_ERROR_*       Error occurred.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfAddSymbol (
+  IN  BINFORMAT_CONTEXT  *Context,
+  IN  BINFORMAT_SYMBOL   *Symbol,
+  OUT UINT32             *Index
+  )
+{
+  ELF_CONTEXT       *ElfCtx;
+  BINFORMAT_STATUS  Status;
+
+  if (Context == NULL || Symbol == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  ElfCtx = ELF_CONTEXT_FROM_BINFORMAT(Context);
+
+  if (ElfCtx->ReadOnly) {
+    return BINFORMAT_ERROR_UNSUPPORTED;
+  }
+
+  //
+  // Find symbol table if not already done
+  //
+  if (ElfCtx->Symbols.Elf32 == NULL && ElfCtx->Symbols.Elf64 == NULL) {
+    Status = ElfFindSymbolTable(ElfCtx);
+    if (BINFORMAT_IS_ERROR(Status)) {
+      return BINFORMAT_ERROR_NOT_FOUND;
+    }
+  }
+
+  //
+  // TODO: Implement symbol table expansion
+  // For now, return not implemented
+  //
+  (VOID)Index;
+  return BINFORMAT_ERROR_NOT_IMPLEMENTED;
+}
+
+/**
+  Add relocation entry.
+
+  @param[in]  Context       ELF context.
+  @param[in]  SectionIndex  Target section index.
+  @param[in]  Relocation    Relocation to add.
+
+  @retval BINFORMAT_SUCCESS       Relocation added successfully.
+  @retval BINFORMAT_ERROR_*       Error occurred.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfAddRelocation (
+  IN  BINFORMAT_CONTEXT     *Context,
+  IN  UINT32                SectionIndex,
+  IN  BINFORMAT_RELOCATION  *Relocation
+  )
+{
+  ELF_CONTEXT  *ElfCtx;
+
+  if (Context == NULL || Relocation == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  ElfCtx = ELF_CONTEXT_FROM_BINFORMAT(Context);
+
+  if (ElfCtx->ReadOnly) {
+    return BINFORMAT_ERROR_UNSUPPORTED;
+  }
+
+  //
+  // TODO: Implement relocation table expansion
+  // For now, return not implemented
+  //
+  (VOID)SectionIndex;
+  return BINFORMAT_ERROR_NOT_IMPLEMENTED;
+}
 
 /**
   Select architecture in FatELF binary.
