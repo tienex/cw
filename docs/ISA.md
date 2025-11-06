@@ -140,42 +140,42 @@ Note: Actual vector encoding may vary by implementation
 
 | Opcode | Mnemonic | Format | Description |
 |--------|----------|--------|-------------|
-| 0x00   | LDB      | $X,$Y,$Z | Load byte unsigned |
-| 0x01   | LDBU     | $X,$Y,$Z | Load byte unsigned (alias) |
+| 0x00   | LDB      | $X,$Y,$Z | Load byte (1 byte) unsigned |
+| 0x01   | LDBU     | $X,$Y,$Z | Load byte (1 byte) unsigned (alias) |
 | 0x02   | LDW      | $X,$Y,$Z | Load wyde (2 bytes) unsigned |
-| 0x03   | LDWU     | $X,$Y,$Z | Load wyde unsigned (alias) |
+| 0x03   | LDWU     | $X,$Y,$Z | Load wyde (2 bytes) unsigned (alias) |
 | 0x04   | LDT      | $X,$Y,$Z | Load tetra (4 bytes) unsigned |
-| 0x05   | LDTU     | $X,$Y,$Z | Load tetra unsigned (alias) |
+| 0x05   | LDTU     | $X,$Y,$Z | Load tetra (4 bytes) unsigned (alias) |
 | 0x06   | LDO      | $X,$Y,$Z | Load octa (8 bytes) |
-| 0x07   | LDOU     | $X,$Y,$Z | Load octa unsigned (alias) |
-| 0x08   | LDBS     | $X,$Y,$Z | Load byte signed |
-| 0x09   | LDWS     | $X,$Y,$Z | Load wyde signed |
-| 0x0A   | LDTS     | $X,$Y,$Z | Load tetra signed |
-| 0x0B   | LDOS     | $X,$Y,$Z | Load octa signed (alias) |
-| 0x0C   | LDHT     | $X,$Y,$Z | Load high tetra |
-| 0x0D   | LDSF     | $X,$Y,$Z | Load short float |
-| 0x0E   | LDVTS    | $X,$Y,$Z | Load virtual translation |
-| 0x0F   | LDUNC    | $X,$Y,$Z | Load uncached |
+| 0x07   | LDOU     | $X,$Y,$Z | Load octa (8 bytes) unsigned (alias) |
+| 0x08   | LDBS     | $X,$Y,$Z | Load byte (1 byte) signed |
+| 0x09   | LDWS     | $X,$Y,$Z | Load wyde (2 bytes) signed |
+| 0x0A   | LDTS     | $X,$Y,$Z | Load tetra (4 bytes) signed |
+| 0x0B   | LDOS     | $X,$Y,$Z | Load octa (8 bytes) signed (alias) |
+| 0x0C   | LDHT     | $X,$Y,$Z | Load high tetra (4 bytes) |
+| 0x0D   | LDSF     | $X,$Y,$Z | Load short float (4 bytes) |
+| 0x0E   | LDVTS    | $X,$Y,$Z | Load virtual translation (8 bytes) |
+| 0x0F   | LDUNC    | $X,$Y,$Z | Load uncached (8 bytes) |
 
 ### 2.2 Store Instructions (0x10 - 0x1F)
 
 | Opcode | Mnemonic | Format | Description |
 |--------|----------|--------|-------------|
-| 0x10   | STB      | $X,$Y,$Z | Store byte |
-| 0x11   | STBU     | $X,$Y,$Z | Store byte uncached |
-| 0x12   | STW      | $X,$Y,$Z | Store wyde |
-| 0x13   | STWU     | $X,$Y,$Z | Store wyde uncached |
-| 0x14   | STT      | $X,$Y,$Z | Store tetra |
-| 0x15   | STTU     | $X,$Y,$Z | Store tetra uncached |
-| 0x16   | STO      | $X,$Y,$Z | Store octa |
-| 0x17   | STOU     | $X,$Y,$Z | Store octa uncached |
-| 0x18   | STBS     | $X,$Y,$Z | Store byte signed |
-| 0x19   | STWS     | $X,$Y,$Z | Store wyde signed |
-| 0x1A   | STTS     | $X,$Y,$Z | Store tetra signed |
-| 0x1B   | STOS     | $X,$Y,$Z | Store octa signed |
-| 0x1C   | STHT     | $X,$Y,$Z | Store high tetra |
-| 0x1D   | STCO     | $X,$Y,$Z | Store conditional |
-| 0x1E   | STUNC    | $X,$Y,$Z | Store uncached |
+| 0x10   | STB      | $X,$Y,$Z | Store byte (1 byte) |
+| 0x11   | STBU     | $X,$Y,$Z | Store byte (1 byte) uncached |
+| 0x12   | STW      | $X,$Y,$Z | Store wyde (2 bytes) |
+| 0x13   | STWU     | $X,$Y,$Z | Store wyde (2 bytes) uncached |
+| 0x14   | STT      | $X,$Y,$Z | Store tetra (4 bytes) |
+| 0x15   | STTU     | $X,$Y,$Z | Store tetra (4 bytes) uncached |
+| 0x16   | STO      | $X,$Y,$Z | Store octa (8 bytes) |
+| 0x17   | STOU     | $X,$Y,$Z | Store octa (8 bytes) uncached |
+| 0x18   | STBS     | $X,$Y,$Z | Store byte (1 byte) signed |
+| 0x19   | STWS     | $X,$Y,$Z | Store wyde (2 bytes) signed |
+| 0x1A   | STTS     | $X,$Y,$Z | Store tetra (4 bytes) signed |
+| 0x1B   | STOS     | $X,$Y,$Z | Store octa (8 bytes) signed |
+| 0x1C   | STHT     | $X,$Y,$Z | Store high tetra (4 bytes) |
+| 0x1D   | STCO     | $X,$Y,$Z | Store conditional (8 bytes) |
+| 0x1E   | STUNC    | $X,$Y,$Z | Store uncached (8 bytes) |
 | 0x1F   | SYNCD    | $X,$Y,$Z | Synchronize data |
 
 ### 2.3 Arithmetic Instructions (0x20 - 0x3F)
@@ -304,14 +304,14 @@ Note: Actual vector encoding may vary by implementation
 | 0x9300   | ORI    | $X,$Y,Z | OR immediate (compressed if imm fits) |
 | 0x9400   | XORI   | $X,$Y,Z | XOR immediate (compressed if imm fits) |
 | 0x9500   | SETL   | $X,Z | Set low (compressed if fits) |
-| 0xA000   | LDO    | $X,$Y,Z | Load octa (compressed if offset fits) |
-| 0xA100   | LDT    | $X,$Y,Z | Load tetra (compressed if offset fits) |
-| 0xA200   | LDW    | $X,$Y,Z | Load wyde (compressed if offset fits) |
-| 0xA300   | LDB    | $X,$Y,Z | Load byte (compressed if offset fits) |
-| 0xB000   | STO    | $X,$Y,Z | Store octa (compressed if offset fits) |
-| 0xB100   | STT    | $X,$Y,Z | Store tetra (compressed if offset fits) |
-| 0xB200   | STW    | $X,$Y,Z | Store wyde (compressed if offset fits) |
-| 0xB300   | STB    | $X,$Y,Z | Store byte (compressed if offset fits) |
+| 0xA000   | LDO    | $X,$Y,Z | Load octa (8 bytes, compressed if offset fits) |
+| 0xA100   | LDT    | $X,$Y,Z | Load tetra (4 bytes, compressed if offset fits) |
+| 0xA200   | LDW    | $X,$Y,Z | Load wyde (2 bytes, compressed if offset fits) |
+| 0xA300   | LDB    | $X,$Y,Z | Load byte (1 byte, compressed if offset fits) |
+| 0xB000   | STO    | $X,$Y,Z | Store octa (8 bytes, compressed if offset fits) |
+| 0xB100   | STT    | $X,$Y,Z | Store tetra (4 bytes, compressed if offset fits) |
+| 0xB200   | STW    | $X,$Y,Z | Store wyde (2 bytes, compressed if offset fits) |
+| 0xB300   | STB    | $X,$Y,Z | Store byte (1 byte, compressed if offset fits) |
 | 0xC000   | JMP    | Addr | Jump (compressed if offset fits) |
 | 0xC100   | GO     | $X,$Y,Z | Go to (compressed if fits) |
 | 0xC200   | BR     | $X,Addr | Branch (compressed if offset fits) |
