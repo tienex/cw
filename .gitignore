@@ -1,0 +1,35 @@
+# Build artifacts
+build/
+bin/
+*.o
+*.a
+*.so
+*.dylib
+
+# Executables
+mmix-emulator
+*.exe
+
+# Debug files
+*.dSYM/
+*.su
+*.core
+core.*
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files
+*.bin
+*.img
+*.dump
+test_*
+
+# Generated documentation
+docs/html/
+docs/latex/
