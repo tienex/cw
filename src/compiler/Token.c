@@ -222,10 +222,49 @@ TokenTypeName (
     case TOK_FLOAT_LITERAL: return "FLOAT";
     case TOK_CHAR_LITERAL:  return "CHAR";
     case TOK_STRING:        return "STRING";
+
+    // Operators
     case TOK_PLUS:          return "+";
     case TOK_MINUS:         return "-";
     case TOK_STAR:          return "*";
     case TOK_SLASH:         return "/";
+    case TOK_PERCENT:       return "%";
+    case TOK_AMPERSAND:     return "&";
+    case TOK_PIPE:          return "|";
+    case TOK_CARET:         return "^";
+    case TOK_TILDE:         return "~";
+    case TOK_EXCLAIM:       return "!";
+    case TOK_EQUAL:         return "=";
+    case TOK_LESS:          return "<";
+    case TOK_GREATER:       return ">";
+
+    // Compound operators
+    case TOK_PLUS_PLUS:     return "++";
+    case TOK_MINUS_MINUS:   return "--";
+    case TOK_ARROW:         return "->";
+    case TOK_EQUAL_EQUAL:   return "==";
+    case TOK_NOT_EQUAL:     return "!=";
+    case TOK_LESS_EQUAL:    return "<=";
+    case TOK_GREATER_EQUAL: return ">=";
+    case TOK_LOGICAL_AND:   return "&&";
+    case TOK_LOGICAL_OR:    return "||";
+    case TOK_SHIFT_LEFT:    return "<<";
+    case TOK_SHIFT_RIGHT:   return ">>";
+
+    // Delimiters
+    case TOK_LPAREN:        return "(";
+    case TOK_RPAREN:        return ")";
+    case TOK_LBRACE:        return "{";
+    case TOK_RBRACE:        return "}";
+    case TOK_LBRACKET:      return "[";
+    case TOK_RBRACKET:      return "]";
+    case TOK_SEMICOLON:     return ";";
+    case TOK_COMMA:         return ",";
+    case TOK_DOT:           return ".";
+    case TOK_COLON:         return ":";
+    case TOK_QUESTION:      return "?";
+    case TOK_ELLIPSIS:      return "...";
+
     default:
       //
       // Search keyword table
