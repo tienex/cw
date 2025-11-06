@@ -88,6 +88,7 @@ typedef enum {
   AST_DECL_UNION,             // union declaration
   AST_DECL_ENUM,              // enum declaration
   AST_DECL_FIELD,             // struct/union field
+  AST_DECL_ENUMERATOR,        // enum constant
 
   //
   // Type nodes

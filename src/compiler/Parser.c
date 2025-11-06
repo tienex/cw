@@ -847,6 +847,12 @@ ParseTypeQualifiers (
   }
 }
 
+//
+// Forward declarations for mutual recursion
+//
+STATIC AST_TYPE * ParseTypeSpecifiers (IN OUT PARSER_STATE *Parser);
+STATIC AST_TYPE * ParseDeclarator (IN OUT PARSER_STATE *Parser, IN AST_TYPE *BaseType, OUT CHAR8 **Name);
+
 /**
   Parse struct or union declaration.
 
@@ -899,15 +905,91 @@ ParseStructOrUnion (
   AST_TYPE  *Type = AstTypeCreate (IsUnion ? AST_TYPE_UNION : AST_TYPE_STRUCT);
   Type->Struct.Name = Tag;
   Type->Struct.FieldCount = 0;
-  Type->Struct.Fields = NULL;
   Type->Struct.IsComplete = TRUE;
 
-  // TODO: Parse field declarations
-  // For now, just skip to closing brace
+  //
+  // Parse field declarations
+  //
+  UINT32      FieldCapacity = 8;
+  AST_DECL  **Fields = (AST_DECL **)malloc (FieldCapacity * sizeof (AST_DECL *));
+  UINT32      FieldCount = 0;
 
   while (!ParserExpect (Parser, TOK_RBRACE) && !ParserExpect (Parser, TOK_EOF)) {
-    ParserAdvance (Parser);
+    //
+    // Parse type specifiers for field
+    //
+    BOOLEAN  IsConst, IsVolatile, IsRestrict, IsAtomic;
+    ParseTypeQualifiers (Parser, &IsConst, &IsVolatile, &IsRestrict, &IsAtomic);
+
+    AST_TYPE  *FieldBaseType = ParseTypeSpecifiers (Parser);
+    if (FieldBaseType == NULL) {
+      ParserError (Parser, "Expected type specifier in struct/union field");
+      break;
+    }
+
+    //
+    // Apply qualifiers
+    //
+    if (IsConst || IsVolatile || IsRestrict || IsAtomic) {
+      AST_TYPE  *QualType = AstTypeCreate (AST_TYPE_QUALIFIED);
+      QualType->Qualified.BaseType = FieldBaseType;
+      QualType->Qualified.IsConst = IsConst;
+      QualType->Qualified.IsVolatile = IsVolatile;
+      QualType->Qualified.IsRestrict = IsRestrict;
+      QualType->Qualified.IsAtomic = IsAtomic;
+      FieldBaseType = QualType;
+    }
+
+    //
+    // Parse declarator(s) - can have multiple fields of same type
+    //
+    while (TRUE) {
+      CHAR8     *FieldName = NULL;
+      AST_TYPE  *FieldType = ParseDeclarator (Parser, FieldBaseType, &FieldName);
+
+      //
+      // Create field declaration
+      //
+      TOKEN_LOCATION  FieldLoc = Parser->CurrentToken->Location;
+      AST_DECL  *Field = AstDeclCreate (AST_DECL_FIELD, &FieldLoc, FieldName);
+      Field->Type = FieldType;
+      Field->StorageClass = STORAGE_NONE;
+
+      //
+      // Check for bit-field
+      //
+      if (ParserExpect (Parser, TOK_COLON)) {
+        ParserAdvance (Parser);
+        Field->Field.BitWidth = ParseAssignmentExpression (Parser);
+      } else {
+        Field->Field.BitWidth = NULL;
+      }
+
+      //
+      // Add to fields array
+      //
+      if (FieldCount >= FieldCapacity) {
+        FieldCapacity *= 2;
+        Fields = (AST_DECL **)realloc (Fields, FieldCapacity * sizeof (AST_DECL *));
+      }
+      Fields[FieldCount++] = Field;
+
+      //
+      // Check for comma (multiple declarators)
+      //
+      if (ParserExpect (Parser, TOK_COMMA)) {
+        ParserAdvance (Parser);
+        continue;
+      }
+
+      break;
+    }
+
+    ParserConsume (Parser, TOK_SEMICOLON);
   }
+
+  Type->Struct.Fields = Fields;
+  Type->Struct.FieldCount = FieldCount;
 
   ParserConsume (Parser, TOK_RBRACE);
   return Type;
@@ -962,16 +1044,73 @@ ParseEnum (
 
   AST_TYPE  *Type = AstTypeCreate (AST_TYPE_ENUM);
   Type->Enum.Name = Tag;
-  Type->Enum.EnumeratorCount = 0;
-  Type->Enum.Enumerators = NULL;
   Type->Enum.UnderlyingType = NULL;
 
-  // TODO: Parse enumerators
-  // For now, just skip to closing brace
+  //
+  // Parse enumerators
+  //
+  UINT32      EnumCapacity = 8;
+  AST_DECL  **Enumerators = (AST_DECL **)malloc (EnumCapacity * sizeof (AST_DECL *));
+  UINT32      EnumCount = 0;
 
   while (!ParserExpect (Parser, TOK_RBRACE) && !ParserExpect (Parser, TOK_EOF)) {
+    //
+    // Enumerator must have an identifier
+    //
+    if (!ParserExpect (Parser, TOK_IDENTIFIER)) {
+      ParserError (Parser, "Expected enumerator name");
+      break;
+    }
+
+    TOKEN_LOCATION  EnumLoc = Parser->CurrentToken->Location;
+    CHAR8          *EnumName = strdup (Parser->CurrentToken->Text);
     ParserAdvance (Parser);
+
+    //
+    // Optional value assignment
+    //
+    AST_EXPR  *Value = NULL;
+    if (ParserExpect (Parser, TOK_EQUAL)) {
+      ParserAdvance (Parser);
+      Value = ParseAssignmentExpression (Parser);
+    }
+
+    //
+    // Create enumerator declaration
+    //
+    AST_DECL  *Enumerator = AstDeclCreate (AST_DECL_ENUMERATOR, &EnumLoc, EnumName);
+    Enumerator->Type = Type;  // Reference to parent enum type
+    Enumerator->StorageClass = STORAGE_NONE;
+    Enumerator->Enumerator.Value = Value;
+
+    //
+    // Add to enumerators array
+    //
+    if (EnumCount >= EnumCapacity) {
+      EnumCapacity *= 2;
+      Enumerators = (AST_DECL **)realloc (Enumerators, EnumCapacity * sizeof (AST_DECL *));
+    }
+    Enumerators[EnumCount++] = Enumerator;
+
+    //
+    // Check for comma
+    //
+    if (ParserExpect (Parser, TOK_COMMA)) {
+      ParserAdvance (Parser);
+      //
+      // Allow trailing comma before '}'
+      //
+      if (ParserExpect (Parser, TOK_RBRACE)) {
+        break;
+      }
+      continue;
+    }
+
+    break;
   }
+
+  Type->Enum.Enumerators = Enumerators;
+  Type->Enum.EnumeratorCount = EnumCount;
 
   ParserConsume (Parser, TOK_RBRACE);
   return Type;
@@ -1279,11 +1418,82 @@ ParseDeclarator (
       // Parse parameters
       //
       if (!ParserExpect (Parser, TOK_RPAREN)) {
-        // TODO: Parse parameter list
-        // For now, skip to closing paren
-        while (!ParserExpect (Parser, TOK_RPAREN) && !ParserExpect (Parser, TOK_EOF)) {
-          ParserAdvance (Parser);
+        UINT32      ParamCapacity = 8;
+        AST_DECL  **Parameters = (AST_DECL **)malloc (ParamCapacity * sizeof (AST_DECL *));
+        UINT32      ParamCount = 0;
+
+        while (TRUE) {
+          //
+          // Check for variadic (...)
+          //
+          if (ParserExpect (Parser, TOK_ELLIPSIS)) {
+            FuncType->Function.IsVariadic = TRUE;
+            ParserAdvance (Parser);
+            break;
+          }
+
+          //
+          // Parse parameter type
+          //
+          BOOLEAN  IsConst, IsVolatile, IsRestrict, IsAtomic;
+          ParseTypeQualifiers (Parser, &IsConst, &IsVolatile, &IsRestrict, &IsAtomic);
+
+          AST_TYPE  *ParamBaseType = ParseTypeSpecifiers (Parser);
+          if (ParamBaseType == NULL) {
+            ParserError (Parser, "Expected parameter type");
+            break;
+          }
+
+          //
+          // Apply qualifiers
+          //
+          if (IsConst || IsVolatile || IsRestrict || IsAtomic) {
+            AST_TYPE  *QualType = AstTypeCreate (AST_TYPE_QUALIFIED);
+            QualType->Qualified.BaseType = ParamBaseType;
+            QualType->Qualified.IsConst = IsConst;
+            QualType->Qualified.IsVolatile = IsVolatile;
+            QualType->Qualified.IsRestrict = IsRestrict;
+            QualType->Qualified.IsAtomic = IsAtomic;
+            ParamBaseType = QualType;
+          }
+
+          //
+          // Parse declarator (parameter name is optional)
+          //
+          CHAR8     *ParamName = NULL;
+          AST_TYPE  *ParamType = ParseDeclarator (Parser, ParamBaseType, &ParamName);
+
+          //
+          // Create parameter declaration
+          //
+          TOKEN_LOCATION  ParamLoc = Parser->CurrentToken->Location;
+          AST_DECL  *Param = AstDeclCreate (AST_DECL_VAR, &ParamLoc, ParamName);
+          Param->Type = ParamType;
+          Param->StorageClass = STORAGE_NONE;
+          Param->Var.Initializer = NULL;
+
+          //
+          // Add to parameters array
+          //
+          if (ParamCount >= ParamCapacity) {
+            ParamCapacity *= 2;
+            Parameters = (AST_DECL **)realloc (Parameters, ParamCapacity * sizeof (AST_DECL *));
+          }
+          Parameters[ParamCount++] = Param;
+
+          //
+          // Check for comma
+          //
+          if (ParserExpect (Parser, TOK_COMMA)) {
+            ParserAdvance (Parser);
+            continue;
+          }
+
+          break;
         }
+
+        FuncType->Function.Parameters = Parameters;
+        FuncType->Function.ParameterCount = ParamCount;
       }
 
       ParserConsume (Parser, TOK_RPAREN);
