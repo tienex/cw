@@ -581,6 +581,13 @@ IsLittleEndianHost (
 }
 
 //
+// Conditional swap macros - swap only if needed
+//
+#define SWAP16(ctx, val)  ((ctx)->NeedsByteSwap ? ElfSwap16(val) : (val))
+#define SWAP32(ctx, val)  ((ctx)->NeedsByteSwap ? ElfSwap32(val) : (val))
+#define SWAP64(ctx, val)  ((ctx)->NeedsByteSwap ? ElfSwap64(val) : (val))
+
+//
 // x86 (i386) Relocation Types
 //
 #define R_386_NONE           0   ///< No relocation
@@ -1908,27 +1915,31 @@ ElfInitFile (
 
   if (ElfCtx->Is64Bit) {
     ElfCtx->Header.Elf64 = (Elf64_Ehdr *)ElfData;
-    ElfCtx->Sections.Elf64 = (Elf64_Shdr *)(ElfData + ElfCtx->Header.Elf64->e_shoff);
-    ElfCtx->Programs.Elf64 = (Elf64_Phdr *)(ElfData + ElfCtx->Header.Elf64->e_phoff);
+    ElfCtx->Sections.Elf64 = (Elf64_Shdr *)(ElfData + SWAP64(ElfCtx, ElfCtx->Header.Elf64->e_shoff));
+    ElfCtx->Programs.Elf64 = (Elf64_Phdr *)(ElfData + SWAP64(ElfCtx, ElfCtx->Header.Elf64->e_phoff));
 
     //
     // Get string table
     //
-    if (ElfCtx->Header.Elf64->e_shstrndx < ElfCtx->Header.Elf64->e_shnum) {
-      ElfCtx->StringTable = (CHAR8 *)(ElfData +
-        ElfCtx->Sections.Elf64[ElfCtx->Header.Elf64->e_shstrndx].sh_offset);
+    UINT16 shstrndx = SWAP16(ElfCtx, ElfCtx->Header.Elf64->e_shstrndx);
+    UINT16 shnum = SWAP16(ElfCtx, ElfCtx->Header.Elf64->e_shnum);
+    if (shstrndx < shnum) {
+      UINT64 strtab_offset = SWAP64(ElfCtx, ElfCtx->Sections.Elf64[shstrndx].sh_offset);
+      ElfCtx->StringTable = (CHAR8 *)(ElfData + strtab_offset);
     }
   } else {
     ElfCtx->Header.Elf32 = (Elf32_Ehdr *)ElfData;
-    ElfCtx->Sections.Elf32 = (Elf32_Shdr *)(ElfData + ElfCtx->Header.Elf32->e_shoff);
-    ElfCtx->Programs.Elf32 = (Elf32_Phdr *)(ElfData + ElfCtx->Header.Elf32->e_phoff);
+    ElfCtx->Sections.Elf32 = (Elf32_Shdr *)(ElfData + SWAP32(ElfCtx, ElfCtx->Header.Elf32->e_shoff));
+    ElfCtx->Programs.Elf32 = (Elf32_Phdr *)(ElfData + SWAP32(ElfCtx, ElfCtx->Header.Elf32->e_phoff));
 
     //
     // Get string table
     //
-    if (ElfCtx->Header.Elf32->e_shstrndx < ElfCtx->Header.Elf32->e_shnum) {
-      ElfCtx->StringTable = (CHAR8 *)(ElfData +
-        ElfCtx->Sections.Elf32[ElfCtx->Header.Elf32->e_shstrndx].sh_offset);
+    UINT16 shstrndx = SWAP16(ElfCtx, ElfCtx->Header.Elf32->e_shstrndx);
+    UINT16 shnum = SWAP16(ElfCtx, ElfCtx->Header.Elf32->e_shnum);
+    if (shstrndx < shnum) {
+      UINT32 strtab_offset = SWAP32(ElfCtx, ElfCtx->Sections.Elf32[shstrndx].sh_offset);
+      ElfCtx->StringTable = (CHAR8 *)(ElfData + strtab_offset);
     }
   }
 
@@ -2016,21 +2027,25 @@ ElfInitMemory (
 
   if (ElfCtx->Is64Bit) {
     ElfCtx->Header.Elf64 = (Elf64_Ehdr *)ElfData;
-    ElfCtx->Sections.Elf64 = (Elf64_Shdr *)(ElfData + ElfCtx->Header.Elf64->e_shoff);
-    ElfCtx->Programs.Elf64 = (Elf64_Phdr *)(ElfData + ElfCtx->Header.Elf64->e_phoff);
+    ElfCtx->Sections.Elf64 = (Elf64_Shdr *)(ElfData + SWAP64(ElfCtx, ElfCtx->Header.Elf64->e_shoff));
+    ElfCtx->Programs.Elf64 = (Elf64_Phdr *)(ElfData + SWAP64(ElfCtx, ElfCtx->Header.Elf64->e_phoff));
 
-    if (ElfCtx->Header.Elf64->e_shstrndx < ElfCtx->Header.Elf64->e_shnum) {
-      ElfCtx->StringTable = (CHAR8 *)(ElfData +
-        ElfCtx->Sections.Elf64[ElfCtx->Header.Elf64->e_shstrndx].sh_offset);
+    UINT16 shstrndx = SWAP16(ElfCtx, ElfCtx->Header.Elf64->e_shstrndx);
+    UINT16 shnum = SWAP16(ElfCtx, ElfCtx->Header.Elf64->e_shnum);
+    if (shstrndx < shnum) {
+      UINT64 strtab_offset = SWAP64(ElfCtx, ElfCtx->Sections.Elf64[shstrndx].sh_offset);
+      ElfCtx->StringTable = (CHAR8 *)(ElfData + strtab_offset);
     }
   } else {
     ElfCtx->Header.Elf32 = (Elf32_Ehdr *)ElfData;
-    ElfCtx->Sections.Elf32 = (Elf32_Shdr *)(ElfData + ElfCtx->Header.Elf32->e_shoff);
-    ElfCtx->Programs.Elf32 = (Elf32_Phdr *)(ElfData + ElfCtx->Header.Elf32->e_phoff);
+    ElfCtx->Sections.Elf32 = (Elf32_Shdr *)(ElfData + SWAP32(ElfCtx, ElfCtx->Header.Elf32->e_shoff));
+    ElfCtx->Programs.Elf32 = (Elf32_Phdr *)(ElfData + SWAP32(ElfCtx, ElfCtx->Header.Elf32->e_phoff));
 
-    if (ElfCtx->Header.Elf32->e_shstrndx < ElfCtx->Header.Elf32->e_shnum) {
-      ElfCtx->StringTable = (CHAR8 *)(ElfData +
-        ElfCtx->Sections.Elf32[ElfCtx->Header.Elf32->e_shstrndx].sh_offset);
+    UINT16 shstrndx = SWAP16(ElfCtx, ElfCtx->Header.Elf32->e_shstrndx);
+    UINT16 shnum = SWAP16(ElfCtx, ElfCtx->Header.Elf32->e_shnum);
+    if (shstrndx < shnum) {
+      UINT32 strtab_offset = SWAP32(ElfCtx, ElfCtx->Sections.Elf32[shstrndx].sh_offset);
+      ElfCtx->StringTable = (CHAR8 *)(ElfData + strtab_offset);
     }
   }
 
@@ -2184,26 +2199,26 @@ ElfGetHeader (
 
   if (ElfCtx->Is64Bit) {
     Elf64_Ehdr *Hdr = ElfCtx->Header.Elf64;
-    HeaderInfo->FileType = ElfTypeToGeneric(Hdr->e_type);
-    HeaderInfo->Machine = ElfMachineToGeneric(Hdr->e_machine);
+    HeaderInfo->FileType = ElfTypeToGeneric(SWAP16(ElfCtx, Hdr->e_type));
+    HeaderInfo->Machine = ElfMachineToGeneric(SWAP16(ElfCtx, Hdr->e_machine));
     HeaderInfo->Endianness = (Hdr->e_ident[EI_DATA] == ELFDATA2LSB) ?
                              BinEndianLittle : BinEndianBig;
-    HeaderInfo->Version = Hdr->e_version;
-    HeaderInfo->EntryPoint = Hdr->e_entry;
-    HeaderInfo->Flags = Hdr->e_flags;
-    HeaderInfo->SectionCount = Hdr->e_shnum;
-    HeaderInfo->SegmentCount = Hdr->e_phnum;
+    HeaderInfo->Version = SWAP32(ElfCtx, Hdr->e_version);
+    HeaderInfo->EntryPoint = SWAP64(ElfCtx, Hdr->e_entry);
+    HeaderInfo->Flags = SWAP32(ElfCtx, Hdr->e_flags);
+    HeaderInfo->SectionCount = SWAP16(ElfCtx, Hdr->e_shnum);
+    HeaderInfo->SegmentCount = SWAP16(ElfCtx, Hdr->e_phnum);
   } else {
     Elf32_Ehdr *Hdr = ElfCtx->Header.Elf32;
-    HeaderInfo->FileType = ElfTypeToGeneric(Hdr->e_type);
-    HeaderInfo->Machine = ElfMachineToGeneric(Hdr->e_machine);
+    HeaderInfo->FileType = ElfTypeToGeneric(SWAP16(ElfCtx, Hdr->e_type));
+    HeaderInfo->Machine = ElfMachineToGeneric(SWAP16(ElfCtx, Hdr->e_machine));
     HeaderInfo->Endianness = (Hdr->e_ident[EI_DATA] == ELFDATA2LSB) ?
                              BinEndianLittle : BinEndianBig;
-    HeaderInfo->Version = Hdr->e_version;
-    HeaderInfo->EntryPoint = Hdr->e_entry;
-    HeaderInfo->Flags = Hdr->e_flags;
-    HeaderInfo->SectionCount = Hdr->e_shnum;
-    HeaderInfo->SegmentCount = Hdr->e_phnum;
+    HeaderInfo->Version = SWAP32(ElfCtx, Hdr->e_version);
+    HeaderInfo->EntryPoint = SWAP32(ElfCtx, Hdr->e_entry);
+    HeaderInfo->Flags = SWAP32(ElfCtx, Hdr->e_flags);
+    HeaderInfo->SectionCount = SWAP16(ElfCtx, Hdr->e_shnum);
+    HeaderInfo->SegmentCount = SWAP16(ElfCtx, Hdr->e_phnum);
   }
 
   //
@@ -2250,8 +2265,8 @@ ElfGetSection (
 
   ElfCtx = ELF_CONTEXT_FROM_BINFORMAT(Context);
 
-  SectionCount = ElfCtx->Is64Bit ? ElfCtx->Header.Elf64->e_shnum :
-                                   ElfCtx->Header.Elf32->e_shnum;
+  SectionCount = ElfCtx->Is64Bit ? SWAP16(ElfCtx, ElfCtx->Header.Elf64->e_shnum) :
+                                   SWAP16(ElfCtx, ElfCtx->Header.Elf32->e_shnum);
 
   if (Index >= SectionCount) {
     return BINFORMAT_ERROR_NOT_FOUND;
@@ -2262,39 +2277,41 @@ ElfGetSection (
   if (ElfCtx->Is64Bit) {
     Elf64_Shdr *Shdr = &ElfCtx->Sections.Elf64[Index];
 
-    if (ElfCtx->StringTable != NULL && Shdr->sh_name < 0x10000) {
-      strncpy(Section->Name, ElfCtx->StringTable + Shdr->sh_name,
+    UINT32 sh_name = SWAP32(ElfCtx, Shdr->sh_name);
+    if (ElfCtx->StringTable != NULL && sh_name < 0x10000) {
+      strncpy(Section->Name, ElfCtx->StringTable + sh_name,
               BINFORMAT_MAX_SECTION_NAME - 1);
     }
 
-    Section->Type = Shdr->sh_type;
-    Section->Flags = Shdr->sh_flags;
-    Section->VirtualAddress = Shdr->sh_addr;
-    Section->FileOffset = Shdr->sh_offset;
-    Section->Size = Shdr->sh_size;
-    Section->Link = Shdr->sh_link;
-    Section->Info = Shdr->sh_info;
-    Section->Alignment = Shdr->sh_addralign;
-    Section->EntrySize = Shdr->sh_entsize;
-    Section->Data = ElfCtx->FileData + ElfCtx->CurrentOffset + Shdr->sh_offset;
+    Section->Type = SWAP32(ElfCtx, Shdr->sh_type);
+    Section->Flags = SWAP64(ElfCtx, Shdr->sh_flags);
+    Section->VirtualAddress = SWAP64(ElfCtx, Shdr->sh_addr);
+    Section->FileOffset = SWAP64(ElfCtx, Shdr->sh_offset);
+    Section->Size = SWAP64(ElfCtx, Shdr->sh_size);
+    Section->Link = SWAP32(ElfCtx, Shdr->sh_link);
+    Section->Info = SWAP32(ElfCtx, Shdr->sh_info);
+    Section->Alignment = SWAP64(ElfCtx, Shdr->sh_addralign);
+    Section->EntrySize = SWAP64(ElfCtx, Shdr->sh_entsize);
+    Section->Data = ElfCtx->FileData + ElfCtx->CurrentOffset + SWAP64(ElfCtx, Shdr->sh_offset);
   } else {
     Elf32_Shdr *Shdr = &ElfCtx->Sections.Elf32[Index];
 
-    if (ElfCtx->StringTable != NULL && Shdr->sh_name < 0x10000) {
-      strncpy(Section->Name, ElfCtx->StringTable + Shdr->sh_name,
+    UINT32 sh_name = SWAP32(ElfCtx, Shdr->sh_name);
+    if (ElfCtx->StringTable != NULL && sh_name < 0x10000) {
+      strncpy(Section->Name, ElfCtx->StringTable + sh_name,
               BINFORMAT_MAX_SECTION_NAME - 1);
     }
 
-    Section->Type = Shdr->sh_type;
-    Section->Flags = Shdr->sh_flags;
-    Section->VirtualAddress = Shdr->sh_addr;
-    Section->FileOffset = Shdr->sh_offset;
-    Section->Size = Shdr->sh_size;
-    Section->Link = Shdr->sh_link;
-    Section->Info = Shdr->sh_info;
-    Section->Alignment = Shdr->sh_addralign;
-    Section->EntrySize = Shdr->sh_entsize;
-    Section->Data = ElfCtx->FileData + ElfCtx->CurrentOffset + Shdr->sh_offset;
+    Section->Type = SWAP32(ElfCtx, Shdr->sh_type);
+    Section->Flags = SWAP32(ElfCtx, Shdr->sh_flags);
+    Section->VirtualAddress = SWAP32(ElfCtx, Shdr->sh_addr);
+    Section->FileOffset = SWAP32(ElfCtx, Shdr->sh_offset);
+    Section->Size = SWAP32(ElfCtx, Shdr->sh_size);
+    Section->Link = SWAP32(ElfCtx, Shdr->sh_link);
+    Section->Info = SWAP32(ElfCtx, Shdr->sh_info);
+    Section->Alignment = SWAP32(ElfCtx, Shdr->sh_addralign);
+    Section->EntrySize = SWAP32(ElfCtx, Shdr->sh_entsize);
+    Section->Data = ElfCtx->FileData + ElfCtx->CurrentOffset + SWAP32(ElfCtx, Shdr->sh_offset);
   }
 
   return BINFORMAT_SUCCESS;
