@@ -172,6 +172,7 @@ STATIC AST_EXPR *ParsePostfixExpression (IN OUT PARSER_STATE *Parser);
 STATIC AST_EXPR *ParseUnaryExpression (IN OUT PARSER_STATE *Parser);
 STATIC AST_EXPR *ParseBinaryExpression (IN OUT PARSER_STATE *Parser, INT32 MinPrecedence);
 STATIC AST_EXPR *ParseAssignmentExpression (IN OUT PARSER_STATE *Parser);
+STATIC BOOLEAN IsTypeSpecifier (IN TOKEN_TYPE Type);
 
 /**
   Get operator precedence.
@@ -713,7 +714,7 @@ ParserParseStatement (
     ParserAdvance (Parser);
     AST_STMT  *Stmt = AstStmtCreate (AST_STMT_COMPOUND, &Tok->Location);
 
-    // Parse statements
+    // Parse statements and declarations
     UINT32  Capacity = 16;
     Stmt->Compound.Statements = (AST_STMT **)malloc (Capacity * sizeof (AST_STMT *));
     Stmt->Compound.StatementCount = 0;
@@ -723,7 +724,27 @@ ParserParseStatement (
     }
 
     while (!ParserExpect (Parser, TOK_RBRACE) && !ParserExpect (Parser, TOK_EOF)) {
-      AST_STMT  *SubStmt = ParserParseStatement (Parser);
+      AST_STMT  *SubStmt;
+
+      // Check if this is a declaration or a statement
+      if (IsTypeSpecifier (Parser->CurrentToken->Type)) {
+        // Parse declaration and wrap it in a declaration statement
+        AST_DECL  *Decl = ParserParseDeclaration (Parser);
+        if (Decl != NULL) {
+          SubStmt = AstStmtCreate (AST_STMT_DECL, &Parser->CurrentToken->Location);
+          SubStmt->Decl.Declarations = (AST_DECL **)malloc (sizeof (AST_DECL *));
+          SubStmt->Decl.Declarations[0] = Decl;
+          SubStmt->Decl.DeclarationCount = 1;
+        } else {
+          SubStmt = NULL;
+        }
+      } else {
+        // Parse regular statement
+        // TODO: Assignment statements after local variables need fixing
+        // The expression parser doesn't handle assignment operators correctly
+        SubStmt = ParserParseStatement (Parser);
+      }
+
       if (SubStmt != NULL) {
         // Grow array if needed
         if (Stmt->Compound.StatementCount >= Capacity) {
