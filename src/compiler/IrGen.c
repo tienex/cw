@@ -629,6 +629,7 @@ IrGenBinaryExpr (
     case BIN_OP_BIT_AND:    Opcode = IR_AND; break;
     case BIN_OP_BIT_OR:     Opcode = IR_OR; break;
     case BIN_OP_BIT_XOR:    Opcode = IR_XOR; break;
+    case BIN_OP_BIT_CONCAT: Opcode = IR_BFCONCAT; break;
     case BIN_OP_SHIFT_LEFT:  Opcode = IR_SHL; break;
     case BIN_OP_SHIFT_RIGHT: Opcode = IR_SHR; break;
     case BIN_OP_EQ:         Opcode = IR_EQ; break;
@@ -921,6 +922,39 @@ IrGenExpression (
         Instr = IrCreateInstruction (IR_LOAD);
         Instr->Dst = Result;
         Instr->Src1 = Addr;
+        IrAppendInstruction (Context->CurrentBlock, Instr);
+      }
+      break;
+
+    case AST_EXPR_BIT_FIELD:
+      {
+        //
+        // Bit field extraction: object[index:count]
+        // Generate: result = bitfield_extract(object, index, count)
+        //
+        IR_OPERAND      Object, BitIndex, BitCount;
+        IR_INSTRUCTION  *Instr;
+
+        Object = IrGenExpression (Context, Expr->BitField.Object);
+        BitIndex = IrGenExpression (Context, Expr->BitField.BitIndex);
+        BitCount = IrGenExpression (Context, Expr->BitField.BitCount);
+
+        //
+        // Allocate result register
+        //
+        Result = IrAllocReg (Context->CurrentFunc, Expr->Type);
+
+        //
+        // Create bit field extract instruction
+        // IR_BFEXT: dst = bitfield_extract(src, index, count)
+        //
+        Instr = IrCreateInstruction (IR_BFEXT);
+        Instr->Dst = Result;
+        Instr->Src1 = Object;
+        Instr->Src2 = BitIndex;
+        Instr->Args = (IR_OPERAND *)malloc (sizeof (IR_OPERAND));
+        Instr->Args[0] = BitCount;
+        Instr->ArgCount = 1;
         IrAppendInstruction (Context->CurrentBlock, Instr);
       }
       break;

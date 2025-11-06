@@ -41,6 +41,7 @@ typedef enum {
   AST_EXPR_CALL,              // Function call
   AST_EXPR_MEMBER,            // Struct/union member access
   AST_EXPR_INDEX,             // Array subscript
+  AST_EXPR_BIT_FIELD,         // Bit field indexing (MMIX extension)
   AST_EXPR_CAST,              // Type cast
   AST_EXPR_SIZEOF,            // sizeof operator
   AST_EXPR_ALIGNOF,           // _Alignof operator
@@ -175,6 +176,7 @@ typedef enum {
   BIN_OP_BIT_AND,         // &
   BIN_OP_BIT_OR,          // |
   BIN_OP_BIT_XOR,         // ^
+  BIN_OP_BIT_CONCAT,      // .. (bit concatenation, MMIX extension)
   BIN_OP_SHIFT_LEFT,      // <<
   BIN_OP_SHIFT_RIGHT,     // >>
   BIN_OP_LOGICAL_AND,     // &&
@@ -337,6 +339,12 @@ struct _AST_EXPR {
       AST_EXPR      *Array;
       AST_EXPR      *Index;
     } Index;
+
+    struct {
+      AST_EXPR      *Object;          // Object to extract bits from
+      AST_EXPR      *BitIndex;        // Starting bit index
+      AST_EXPR      *BitCount;        // Number of bits
+    } BitField;
 
     struct {
       AST_TYPE      *TargetType;

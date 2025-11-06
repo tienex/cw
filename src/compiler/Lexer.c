@@ -718,10 +718,17 @@ LexerNextToken (
       break;
 
     case '.':
-      if (Lexer->CurrentChar == '.' && LexerPeekChar (Lexer, 1) == '.') {
-        LexerAdvance (Lexer);
-        LexerAdvance (Lexer);
-        Token = TokenCreate (TOK_ELLIPSIS, &Location, "...", 3);
+      if (Lexer->CurrentChar == '.') {
+        if (LexerPeekChar (Lexer, 1) == '.') {
+          // ... (ellipsis)
+          LexerAdvance (Lexer);
+          LexerAdvance (Lexer);
+          Token = TokenCreate (TOK_ELLIPSIS, &Location, "...", 3);
+        } else {
+          // .. (bit concatenation)
+          LexerAdvance (Lexer);
+          Token = TokenCreate (TOK_DOT_DOT, &Location, "..", 2);
+        }
       } else {
         Token = TokenCreate (TOK_DOT, &Location, ".", 1);
       }

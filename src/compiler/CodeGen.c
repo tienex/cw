@@ -450,6 +450,101 @@ CodeGenInstruction (
       break;
 
     //
+    // Bit field operations (MMIX extension)
+    //
+    case IR_BFEXT:
+      {
+        //
+        // Bit field extract: dst = src[index:count]
+        // 1. Shift right by index: dst = src >> index
+        // 2. Mask to count bits: dst = dst & ((1 << count) - 1)
+        //
+        CHAR8  Count[64];
+
+        CodeGenGetOperand (Context, &Instr->Args[0], Count, sizeof (Count));
+
+        // Shift right by index
+        snprintf (Operands, sizeof (Operands), "%s,%s,%s", Dst, Src1, Src2);
+        CodeGenEmitInstr (Context, "SRU", Operands);
+
+        // Create mask: (1 << count) - 1
+        // Use temp register $32 for mask calculation
+        snprintf (Operands, sizeof (Operands), "$32,1,%s", Count);
+        CodeGenEmitInstr (Context, "SLU", Operands);
+        snprintf (Operands, sizeof (Operands), "$32,$32,1");
+        CodeGenEmitInstr (Context, "SUBU", Operands);
+
+        // Mask the result
+        snprintf (Operands, sizeof (Operands), "%s,%s,$32", Dst, Dst);
+        CodeGenEmitInstr (Context, "AND", Operands);
+      }
+      break;
+
+    case IR_BFINS:
+      {
+        //
+        // Bit field insert: dst[index:count] = src
+        // 1. Create mask: mask = ((1 << count) - 1) << index
+        // 2. Clear bits: dst = dst & ~mask
+        // 3. Shift source: temp = src << index
+        // 4. Mask source: temp = temp & mask
+        // 5. Insert: dst = dst | temp
+        //
+        CHAR8  Count[64];
+
+        CodeGenGetOperand (Context, &Instr->Args[0], Count, sizeof (Count));
+
+        // Create mask: (1 << count) - 1
+        // Use temp registers $32 and $33
+        snprintf (Operands, sizeof (Operands), "$32,1,%s", Count);
+        CodeGenEmitInstr (Context, "SLU", Operands);
+        snprintf (Operands, sizeof (Operands), "$32,$32,1");
+        CodeGenEmitInstr (Context, "SUBU", Operands);
+
+        // Shift mask to position: mask = mask << index
+        snprintf (Operands, sizeof (Operands), "$32,$32,%s", Src2);
+        CodeGenEmitInstr (Context, "SLU", Operands);
+
+        // Clear bits in destination: dst = dst & ~mask
+        snprintf (Operands, sizeof (Operands), "$33,$32");
+        CodeGenEmitInstr (Context, "NOR", Operands);
+        snprintf (Operands, sizeof (Operands), "%s,%s,$33", Dst, Dst);
+        CodeGenEmitInstr (Context, "AND", Operands);
+
+        // Shift source to position: temp = src << index
+        snprintf (Operands, sizeof (Operands), "$33,%s,%s", Src1, Src2);
+        CodeGenEmitInstr (Context, "SLU", Operands);
+
+        // Mask source: temp = temp & mask
+        snprintf (Operands, sizeof (Operands), "$33,$33,$32");
+        CodeGenEmitInstr (Context, "AND", Operands);
+
+        // Insert: dst = dst | temp
+        snprintf (Operands, sizeof (Operands), "%s,%s,$33", Dst, Dst);
+        CodeGenEmitInstr (Context, "OR", Operands);
+      }
+      break;
+
+    case IR_BFCONCAT:
+      {
+        //
+        // Bit concatenation: dst = left .. right
+        // Shift left operand by width of right operand, then OR
+        // For simplicity, assume right operand is 8 bits (will need proper typing later)
+        //
+
+        // Shift left operand left by 8 (TODO: use actual bit width)
+        // Use temp register $32
+        snprintf (Operands, sizeof (Operands), "$32,%s,8", Src1);
+        CodeGenEmitInstr (Context, "SLU", Operands);
+
+        // OR with right operand
+        snprintf (Operands, sizeof (Operands), "%s,$32,%s", Dst, Src2);
+        CodeGenEmitInstr (Context, "OR", Operands);
+      }
+      break;
+
+    //
     // Comparison
     //
     case IR_EQ:

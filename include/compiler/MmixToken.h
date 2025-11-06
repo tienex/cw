@@ -235,6 +235,7 @@ typedef enum {
   TOK_CARET_EQUAL,      // ^=
   TOK_SHIFT_LEFT_EQUAL, // <<=
   TOK_SHIFT_RIGHT_EQUAL,// >>=
+  TOK_DOT_DOT,          // .. (bit concatenation, MMIX extension)
   TOK_ELLIPSIS,         // ...
   TOK_DOUBLE_COLON,     // :: (C++ / scope)
 

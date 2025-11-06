@@ -216,6 +216,7 @@ GetOperatorPrecedence (
       return 8;
 
     case TOK_CARET:
+    case TOK_DOT_DOT:      // Bit concatenation (MMIX extension)
       return 7;
 
     case TOK_PIPE:
@@ -257,6 +258,7 @@ TokenToBinaryOp (
     case TOK_AMPERSAND:         return BIN_OP_BIT_AND;
     case TOK_PIPE:              return BIN_OP_BIT_OR;
     case TOK_CARET:             return BIN_OP_BIT_XOR;
+    case TOK_DOT_DOT:           return BIN_OP_BIT_CONCAT;
     case TOK_SHIFT_LEFT:        return BIN_OP_SHIFT_LEFT;
     case TOK_SHIFT_RIGHT:       return BIN_OP_SHIFT_RIGHT;
     case TOK_LOGICAL_AND:       return BIN_OP_LOGICAL_AND;
@@ -416,17 +418,32 @@ ParsePostfixExpression (
     TOKEN  *Tok = Parser->CurrentToken;
 
     //
-    // Array subscript: expr[index]
+    // Array subscript: expr[index] or bit field: expr[index:count]
     //
     if (Tok->Type == TOK_LBRACKET) {
       ParserAdvance (Parser);
       AST_EXPR  *Index = ParserParseExpression (Parser);
-      ParserConsume (Parser, TOK_RBRACKET);
 
-      AST_EXPR  *NewExpr = AstExprCreate (AST_EXPR_INDEX, &Tok->Location);
-      NewExpr->Index.Array = Expr;
-      NewExpr->Index.Index = Index;
-      Expr = NewExpr;
+      // Check for bit field indexing syntax: [index:count]
+      if (ParserExpect (Parser, TOK_COLON)) {
+        ParserAdvance (Parser);  // consume ':'
+        AST_EXPR  *Count = ParserParseExpression (Parser);
+        ParserConsume (Parser, TOK_RBRACKET);
+
+        AST_EXPR  *NewExpr = AstExprCreate (AST_EXPR_BIT_FIELD, &Tok->Location);
+        NewExpr->BitField.Object = Expr;
+        NewExpr->BitField.BitIndex = Index;
+        NewExpr->BitField.BitCount = Count;
+        Expr = NewExpr;
+      } else {
+        // Regular array indexing
+        ParserConsume (Parser, TOK_RBRACKET);
+
+        AST_EXPR  *NewExpr = AstExprCreate (AST_EXPR_INDEX, &Tok->Location);
+        NewExpr->Index.Array = Expr;
+        NewExpr->Index.Index = Index;
+        Expr = NewExpr;
+      }
       continue;
     }
 
