@@ -191,68 +191,93 @@ Compressed instructions are 16 bits wide for improved code density:
 
 ## 3. Extended Instruction Set
 
-### 3.1 Compressed Instructions (c.* prefix)
+### 3.1 Compressed Instructions
+
+**Note**: Compressed instructions use the same mnemonics as full 32-bit instructions. The assembler automatically selects compressed (16-bit) encoding when operands fit within compressed format constraints. No special syntax is required.
 
 | Encoding | Mnemonic | Format | Description |
 |----------|----------|--------|-------------|
-| 0x8000   | C.ADD    | c.rd,c.rs1,c.rs2 | Compressed add |
-| 0x8100   | C.SUB    | c.rd,c.rs1,c.rs2 | Compressed subtract |
-| 0x8200   | C.MUL    | c.rd,c.rs1,c.rs2 | Compressed multiply |
-| 0x8300   | C.AND    | c.rd,c.rs1,c.rs2 | Compressed AND |
-| 0x8400   | C.OR     | c.rd,c.rs1,c.rs2 | Compressed OR |
-| 0x8500   | C.XOR    | c.rd,c.rs1,c.rs2 | Compressed XOR |
-| 0x9000   | C.ADDI   | c.rd,c.rs1,imm | Compressed add immediate |
-| 0x9100   | C.SUBI   | c.rd,c.rs1,imm | Compressed subtract immediate |
-| 0x9200   | C.ANDI   | c.rd,c.rs1,imm | Compressed AND immediate |
-| 0x9300   | C.ORI    | c.rd,c.rs1,imm | Compressed OR immediate |
-| 0x9400   | C.XORI   | c.rd,c.rs1,imm | Compressed XOR immediate |
-| 0x9500   | C.LI     | c.rd,imm | Compressed load immediate |
-| 0xA000   | C.LDO    | c.rd,offset(c.rs1) | Compressed load octa |
-| 0xA100   | C.LDT    | c.rd,offset(c.rs1) | Compressed load tetra |
-| 0xA200   | C.LDW    | c.rd,offset(c.rs1) | Compressed load wyde |
-| 0xA300   | C.LDB    | c.rd,offset(c.rs1) | Compressed load byte |
-| 0xB000   | C.STO    | c.rs2,offset(c.rs1) | Compressed store octa |
-| 0xB100   | C.STT    | c.rs2,offset(c.rs1) | Compressed store tetra |
-| 0xB200   | C.STW    | c.rs2,offset(c.rs1) | Compressed store wyde |
-| 0xB300   | C.STB    | c.rs2,offset(c.rs1) | Compressed store byte |
-| 0xC000   | C.J      | offset | Compressed jump |
-| 0xC100   | C.JR     | c.rs1 | Compressed jump register |
-| 0xC200   | C.BR     | c.rs1,offset | Compressed branch |
-| 0xC300   | C.MV     | c.rd,c.rs1 | Compressed move |
+| 0x8000   | ADD    | $X,$Y,$Z | Add (compressed if operands fit) |
+| 0x8100   | SUB    | $X,$Y,$Z | Subtract (compressed if operands fit) |
+| 0x8200   | MUL    | $X,$Y,$Z | Multiply (compressed if operands fit) |
+| 0x8300   | AND    | $X,$Y,$Z | Bitwise AND (compressed if operands fit) |
+| 0x8400   | OR     | $X,$Y,$Z | Bitwise OR (compressed if operands fit) |
+| 0x8500   | XOR    | $X,$Y,$Z | Bitwise XOR (compressed if operands fit) |
+| 0x9000   | ADDI   | $X,$Y,Z | Add immediate (compressed if imm fits) |
+| 0x9100   | SUBI   | $X,$Y,Z | Subtract immediate (compressed if imm fits) |
+| 0x9200   | ANDI   | $X,$Y,Z | AND immediate (compressed if imm fits) |
+| 0x9300   | ORI    | $X,$Y,Z | OR immediate (compressed if imm fits) |
+| 0x9400   | XORI   | $X,$Y,Z | XOR immediate (compressed if imm fits) |
+| 0x9500   | SETL   | $X,Z | Set low (compressed if fits) |
+| 0xA000   | LDO    | $X,$Y,Z | Load octa (compressed if offset fits) |
+| 0xA100   | LDT    | $X,$Y,Z | Load tetra (compressed if offset fits) |
+| 0xA200   | LDW    | $X,$Y,Z | Load wyde (compressed if offset fits) |
+| 0xA300   | LDB    | $X,$Y,Z | Load byte (compressed if offset fits) |
+| 0xB000   | STO    | $X,$Y,Z | Store octa (compressed if offset fits) |
+| 0xB100   | STT    | $X,$Y,Z | Store tetra (compressed if offset fits) |
+| 0xB200   | STW    | $X,$Y,Z | Store wyde (compressed if offset fits) |
+| 0xB300   | STB    | $X,$Y,Z | Store byte (compressed if offset fits) |
+| 0xC000   | JMP    | Addr | Jump (compressed if offset fits) |
+| 0xC100   | GO     | $X,$Y,Z | Go to (compressed if fits) |
+| 0xC200   | BR     | $X,Addr | Branch (compressed if offset fits) |
+| 0xC300   | SET    | $X,$Y | Move/set (compressed if fits) |
 
-### 3.2 Vector Instructions (V.* prefix)
+**Compressed Encoding Rules**:
+- Registers must be in range $0-$31 for most compressed instructions
+- Immediates limited to smaller ranges (typically 5-8 bits)
+- Offsets limited to scaled ranges (e.g., ±32 bytes)
+- Assembler chooses encoding automatically based on operand constraints
 
-| Opcode | Mnemonic | Format | Description |
-|--------|----------|--------|-------------|
-| 0xE0   | V.ADD    | vd,vs1,vs2,vm | Vector add |
-| 0xE1   | V.SUB    | vd,vs1,vs2,vm | Vector subtract |
-| 0xE2   | V.MUL    | vd,vs1,vs2,vm | Vector multiply |
-| 0xE3   | V.DIV    | vd,vs1,vs2,vm | Vector divide |
-| 0xE4   | V.FADD   | vd,vs1,vs2,vm | Vector FP add |
-| 0xE5   | V.FSUB   | vd,vs1,vs2,vm | Vector FP subtract |
-| 0xE6   | V.FMUL   | vd,vs1,vs2,vm | Vector FP multiply |
-| 0xE7   | V.FDIV   | vd,vs1,vs2,vm | Vector FP divide |
-| 0xE8   | V.AND    | vd,vs1,vs2,vm | Vector bitwise AND |
-| 0xE9   | V.OR     | vd,vs1,vs2,vm | Vector bitwise OR |
-| 0xEA   | V.XOR    | vd,vs1,vs2,vm | Vector bitwise XOR |
-| 0xEB   | V.SL     | vd,vs1,vs2,vm | Vector shift left |
-| 0xEC   | V.SR     | vd,vs1,vs2,vm | Vector shift right |
-| 0xED   | V.LD     | vd,base,stride | Vector load strided |
-| 0xEE   | V.ST     | vs,base,stride | Vector store strided |
-| 0xEF   | V.GATHER | vd,base,vindex | Vector gather |
+### 3.2 Vector Instructions
 
-### 3.3 Matrix Instructions (M.* prefix)
+**Note**: Vector instructions follow MMIX mnemonic conventions. Vector register operands are specified as V0-V255, predicate masks as P0-P63.
 
 | Opcode | Mnemonic | Format | Description |
 |--------|----------|--------|-------------|
-| 0xF0   | M.MMUL   | za,vs1,vs2 | Matrix multiply |
-| 0xF1   | M.MMLA   | za,vs1,vs2 | Matrix multiply-accumulate |
-| 0xF2   | M.MFMA   | za,vs1,vs2 | Matrix FMA |
-| 0xF3   | M.MTRANS | za,zb | Matrix transpose |
-| 0xF4   | M.MLOAD  | za,base | Matrix tile load |
-| 0xF5   | M.MSTORE | za,base | Matrix tile store |
-| 0xF6   | M.MZERO  | za | Matrix tile zero |
-| 0xF7   | M.MCOPY  | za,zb | Matrix tile copy |
+| 0xE0   | VADD    | VD,VS1,VS2,PM | Vector add |
+| 0xE1   | VSUB    | VD,VS1,VS2,PM | Vector subtract |
+| 0xE2   | VMUL    | VD,VS1,VS2,PM | Vector multiply |
+| 0xE3   | VDIV    | VD,VS1,VS2,PM | Vector divide |
+| 0xE4   | VFADD   | VD,VS1,VS2,PM | Vector FP add |
+| 0xE5   | VFSUB   | VD,VS1,VS2,PM | Vector FP subtract |
+| 0xE6   | VFMUL   | VD,VS1,VS2,PM | Vector FP multiply |
+| 0xE7   | VFDIV   | VD,VS1,VS2,PM | Vector FP divide |
+| 0xE8   | VAND    | VD,VS1,VS2,PM | Vector bitwise AND |
+| 0xE9   | VOR     | VD,VS1,VS2,PM | Vector bitwise OR |
+| 0xEA   | VXOR    | VD,VS1,VS2,PM | Vector bitwise XOR |
+| 0xEB   | VSL     | VD,VS1,VS2,PM | Vector shift left |
+| 0xEC   | VSR     | VD,VS1,VS2,PM | Vector shift right |
+| 0xED   | VLD     | VD,$Y,Z | Vector load strided |
+| 0xEE   | VST     | VS,$Y,Z | Vector store strided |
+| 0xEF   | VGATHER | VD,$Y,VIDX | Vector gather |
+
+**Vector Instruction Format**:
+- VD, VS1, VS2: Vector registers (V0-V255)
+- PM: Predicate mask (P0-P63), optional for masked operations
+- $Y: Base address register
+- Z: Stride/offset
+- VIDX: Index vector for gather/scatter
+
+### 3.3 Matrix Instructions
+
+**Note**: Matrix instructions follow MMIX mnemonic conventions. Matrix tile registers are specified as ZA0-ZA7.
+
+| Opcode | Mnemonic | Format | Description |
+|--------|----------|--------|-------------|
+| 0xF0   | MMUL   | ZA,VS1,VS2 | Matrix multiply |
+| 0xF1   | MMLA   | ZA,VS1,VS2 | Matrix multiply-accumulate |
+| 0xF2   | MFMA   | ZA,VS1,VS2 | Matrix FMA |
+| 0xF3   | MTRANS | ZA,ZB | Matrix transpose |
+| 0xF4   | MLOAD  | ZA,$Y,Z | Matrix tile load |
+| 0xF5   | MSTORE | ZA,$Y,Z | Matrix tile store |
+| 0xF6   | MZERO  | ZA | Matrix tile zero |
+| 0xF7   | MCOPY  | ZA,ZB | Matrix tile copy |
+
+**Matrix Instruction Format**:
+- ZA, ZB: Matrix tile registers (ZA0-ZA7)
+- VS1, VS2: Vector source registers for outer product
+- $Y: Base address register
+- Z: Offset
 
 ### 3.4 ML/AI Instructions
 
