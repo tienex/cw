@@ -580,12 +580,18 @@ CodeGenInstruction (
         //
         // Bit concatenation: dst = left .. right
         // Shift left operand by width of right operand, then OR
-        // For simplicity, assume right operand is 8 bits (will need proper typing later)
+        // Use explicit bit-width from suffix (ui4, i8, etc.) if available
         //
+        UINT32  ShiftAmount = 8;  // Default to 8 bits
 
-        // Shift left operand left by 8 (TODO: use actual bit width)
+        // Use explicit bit-width if specified on right operand
+        if (Instr->Src2.BitWidth > 0) {
+          ShiftAmount = Instr->Src2.BitWidth;
+        }
+
+        // Shift left operand left by bit width
         // Use temp register $32
-        snprintf (Operands, sizeof (Operands), "$32,%s,8", Src1);
+        snprintf (Operands, sizeof (Operands), "$32,%s,%u", Src1, ShiftAmount);
         CodeGenEmitInstr (Context, "SLU", Operands);
 
         // OR with right operand

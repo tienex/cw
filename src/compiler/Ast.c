@@ -235,6 +235,7 @@ AstNodeDestroy (
   @param[in]      Location      Source location.
   @param[in]      Value         Integer value.
   @param[in]      IsUnsigned    TRUE if unsigned.
+  @param[in]      BitWidth      Explicit bit width (0 = unspecified).
 
   @return  Pointer to expression node.
 
@@ -243,7 +244,8 @@ AST_EXPR *
 AstExprCreateInteger (
   IN  CONST TOKEN_LOCATION  *Location,
   IN  UINT64                Value,
-  IN  BOOLEAN               IsUnsigned
+  IN  BOOLEAN               IsUnsigned,
+  IN  UINT32                BitWidth
   )
 {
   AST_EXPR  *Expr;
@@ -255,6 +257,7 @@ AstExprCreateInteger (
 
   Expr->Integer.Value = Value;
   Expr->Integer.IsUnsigned = IsUnsigned;
+  Expr->Integer.BitWidth = BitWidth;
 
   return Expr;
 }

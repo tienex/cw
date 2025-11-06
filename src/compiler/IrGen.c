@@ -551,6 +551,7 @@ IrAllocReg (
   Reg.Type = IR_OPERAND_REG;
   Reg.RegNum = Func->NextRegNum++;
   Reg.DataType = Type;
+  Reg.BitWidth = 0;  // Not applicable for registers
 
   return Reg;
 }
@@ -560,6 +561,7 @@ IrAllocReg (
 
   @param[in]      Value         Constant value.
   @param[in]      Type          Value type.
+  @param[in]      BitWidth      Explicit bit width (0 = unspecified).
 
   @return  Constant operand.
 
@@ -567,7 +569,8 @@ IrAllocReg (
 IR_OPERAND
 IrConstant (
   IN  INT64     Value,
-  IN  AST_TYPE  *Type
+  IN  AST_TYPE  *Type,
+  IN  UINT32    BitWidth
   )
 {
   IR_OPERAND  Const;
@@ -575,6 +578,7 @@ IrConstant (
   Const.Type = IR_OPERAND_CONST;
   Const.ConstValue = Value;
   Const.DataType = Type;
+  Const.BitWidth = BitWidth;
 
   return Const;
 }
@@ -599,6 +603,7 @@ IrSymbol (
   Sym.Type = IR_OPERAND_SYMBOL;
   Sym.SymbolName = (CHAR8 *)Name;
   Sym.DataType = Type;
+  Sym.BitWidth = 0;  // Not applicable for symbols
 
   return Sym;
 }
@@ -1256,6 +1261,8 @@ IrGenExpression (
   IR_OPERAND  Result;
 
   Result.Type = IR_OPERAND_NONE;
+  Result.BitWidth = 0;
+  Result.DataType = NULL;
 
   if (Expr == NULL) {
     return Result;
@@ -1263,7 +1270,7 @@ IrGenExpression (
 
   switch (Expr->Kind) {
     case AST_EXPR_INTEGER:
-      return IrConstant (Expr->Integer.Value, Expr->Type);
+      return IrConstant (Expr->Integer.Value, Expr->Type, Expr->Integer.BitWidth);
 
     case AST_EXPR_IDENTIFIER:
       {
@@ -1800,7 +1807,7 @@ IrGenStatement (
             }
 
             // For now, assume element size is 8 bytes (octa)
-            Size = IrConstant (ArraySize * 8, Decl->Type);
+            Size = IrConstant (ArraySize * 8, Decl->Type, 0);
 
             // Allocate result register to hold array address
             VarOp = IrAllocReg (Context->CurrentFunc, Decl->Type);
@@ -1818,7 +1825,7 @@ IrGenStatement (
             IR_OPERAND      Size;
 
             // Allocate 8 bytes (one octa) for scalar
-            Size = IrConstant (8, Decl->Type);
+            Size = IrConstant (8, Decl->Type, 0);
 
             // Allocate result register to hold variable address
             VarOp = IrAllocReg (Context->CurrentFunc, Decl->Type);
@@ -1957,6 +1964,7 @@ IrGenDeclaration (
         ParamOp.Type = IR_OPERAND_REG;
         ParamOp.RegNum = Func->NextRegNum++;
         ParamOp.DataType = Param->Type;
+        ParamOp.BitWidth = 0;  // Not applicable for parameters
 
         //
         // Add to symbol table

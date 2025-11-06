@@ -294,6 +294,7 @@ struct _AST_EXPR {
     struct {
       UINT64        Value;
       BOOLEAN       IsUnsigned;
+      UINT32        BitWidth;         // Explicit bit width from suffix (0 = unspecified)
     } Integer;
 
     struct {
@@ -598,7 +599,8 @@ AST_EXPR *
 AstExprCreateInteger (
   IN  CONST TOKEN_LOCATION  *Location,
   IN  UINT64                Value,
-  IN  BOOLEAN               IsUnsigned
+  IN  BOOLEAN               IsUnsigned,
+  IN  UINT32                BitWidth
   );
 
 /**

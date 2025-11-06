@@ -397,9 +397,10 @@ LexNumber (
   }
 
   //
-  // Read suffix (f, l, u, etc.)
+  // Read suffix (f, l, u, etc.) and bit-width specifiers (ui8, i16, etc.)
+  // Allow alphanumeric characters in suffix
   //
-  while (!Lexer->AtEof && (isalpha (Lexer->CurrentChar))) {
+  while (!Lexer->AtEof && (isalpha (Lexer->CurrentChar) || isdigit (Lexer->CurrentChar))) {
     LexerAdvance (Lexer);
   }
 

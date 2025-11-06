@@ -119,6 +119,7 @@ typedef struct {
     UINT32           TempId;       // Temporary ID
   };
   AST_TYPE           *DataType;    // Type of this operand
+  UINT32             BitWidth;     // Explicit bit width for constants (0 = unspecified)
 } IR_OPERAND;
 
 /**
@@ -350,7 +351,8 @@ IrAllocReg (
 IR_OPERAND
 IrConstant (
   IN  INT64     Value,
-  IN  AST_TYPE  *Type
+  IN  AST_TYPE  *Type,
+  IN  UINT32    BitWidth
   );
 
 /**

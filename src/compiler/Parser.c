@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include "../../include/compiler/MmixParser.h"
 
 /**
@@ -337,16 +338,49 @@ ParsePrimaryExpression (
     }
 
     //
-    // Check for unsigned suffix (u or U)
+    // Parse suffix: [u|U][i|I]<digits> for bit-width specification
+    // Examples: ui8, i16, U, i32, ui64
     //
-    if (Tok->TextLength > 0) {
-      CHAR8  LastChar = Tok->Text[Tok->TextLength - 1];
-      if (LastChar == 'u' || LastChar == 'U') {
-        IsUnsigned = TRUE;
+    UINT32  BitWidth = 0;
+    UINT32  SuffixStart = Tok->TextLength;
+
+    // Find start of suffix (first non-digit/non-x/non-b character after number)
+    for (UINT32 i = 0; i < Tok->TextLength; i++) {
+      CHAR8 c = Tok->Text[i];
+      if ((c == 'u' || c == 'U' || c == 'i' || c == 'I' || c == 'l' || c == 'L') &&
+          i > 0 && Tok->Text[i-1] != 'x' && Tok->Text[i-1] != 'X' &&
+          Tok->Text[i-1] != 'b' && Tok->Text[i-1] != 'B') {
+        SuffixStart = i;
+        break;
       }
     }
 
-    AST_EXPR  *Expr = AstExprCreateInteger (&Tok->Location, Value, IsUnsigned);
+    // Parse suffix if present
+    if (SuffixStart < Tok->TextLength) {
+      UINT32 i = SuffixStart;
+
+      // Check for 'u' or 'U' (unsigned)
+      if (i < Tok->TextLength && (Tok->Text[i] == 'u' || Tok->Text[i] == 'U')) {
+        IsUnsigned = TRUE;
+        i++;
+      }
+
+      // Check for 'i' or 'I' followed by digits (bit-width)
+      if (i < Tok->TextLength && (Tok->Text[i] == 'i' || Tok->Text[i] == 'I')) {
+        i++;
+        // Parse bit-width digits
+        if (i < Tok->TextLength && isdigit(Tok->Text[i])) {
+          BitWidth = atoi(&Tok->Text[i]);
+        }
+      }
+      // Legacy: just 'u' or 'U' without 'i'
+      else if (IsUnsigned) {
+        // Plain 'u' suffix, no bit-width
+        BitWidth = 0;
+      }
+    }
+
+    AST_EXPR  *Expr = AstExprCreateInteger (&Tok->Location, Value, IsUnsigned, BitWidth);
     ParserAdvance (Parser);
     return Expr;
   }
