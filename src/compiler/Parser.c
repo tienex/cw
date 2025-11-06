@@ -227,7 +227,9 @@ GetOperatorPrecedence (
       return 4;
 
     default:
-      return 0;
+      // Return negative precedence for non-operators
+      // so they don't get parsed as binary operators
+      return -1;
   }
 }
 
@@ -289,6 +291,7 @@ ParsePrimaryExpression (
   )
 {
   TOKEN  *Tok = Parser->CurrentToken;
+
 
   //
   // Integer literal
@@ -672,6 +675,8 @@ ParserParseStatement (
       if (SubStmt != NULL) {
         // Add to list (simplified)
         Stmt->Compound.StatementCount++;
+      } else {
+        break;
       }
     }
 
