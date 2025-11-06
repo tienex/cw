@@ -1090,6 +1090,164 @@ IrGenStatement (
       }
       break;
 
+    case AST_STMT_FOR:
+      {
+        IR_OPERAND      Cond;
+        IR_BASIC_BLOCK  *CondBlock, *BodyBlock, *IncrBlock, *ExitBlock;
+        IR_BASIC_BLOCK  *SaveBreak, *SaveContinue;
+        IR_INSTRUCTION  *BrInstr;
+
+        //
+        // Generate initializer
+        //
+        if (Stmt->For.Initializer != NULL) {
+          IrGenStatement (Context, Stmt->For.Initializer);
+        }
+
+        //
+        // Create blocks
+        //
+        CondBlock = IrCreateBasicBlock (Context->CurrentFunc, "for.cond");
+        BodyBlock = IrCreateBasicBlock (Context->CurrentFunc, "for.body");
+        IncrBlock = IrCreateBasicBlock (Context->CurrentFunc, "for.incr");
+        ExitBlock = IrCreateBasicBlock (Context->CurrentFunc, "for.end");
+
+        //
+        // Save break/continue targets
+        // Continue goes to increment block
+        //
+        SaveBreak = Context->BreakTarget;
+        SaveContinue = Context->ContinueTarget;
+        Context->BreakTarget = ExitBlock;
+        Context->ContinueTarget = IncrBlock;
+
+        //
+        // Branch to condition
+        //
+        BrInstr = IrCreateInstruction (IR_BR);
+        BrInstr->LabelId = CondBlock->Id;
+        IrAppendInstruction (Context->CurrentBlock, BrInstr);
+        IrAddEdge (Context->CurrentBlock, CondBlock);
+
+        //
+        // Generate condition
+        //
+        Context->CurrentBlock = CondBlock;
+        if (Stmt->For.Condition != NULL) {
+          Cond = IrGenExpression (Context, Stmt->For.Condition);
+          BrInstr = IrCreateInstruction (IR_BR_COND);
+          BrInstr->Src1 = Cond;
+          BrInstr->LabelId = BodyBlock->Id;
+          BrInstr->LabelId2 = ExitBlock->Id;
+          IrAppendInstruction (Context->CurrentBlock, BrInstr);
+          IrAddEdge (Context->CurrentBlock, BodyBlock);
+          IrAddEdge (Context->CurrentBlock, ExitBlock);
+        } else {
+          //
+          // No condition means infinite loop (like for(;;))
+          //
+          BrInstr = IrCreateInstruction (IR_BR);
+          BrInstr->LabelId = BodyBlock->Id;
+          IrAppendInstruction (Context->CurrentBlock, BrInstr);
+          IrAddEdge (Context->CurrentBlock, BodyBlock);
+        }
+
+        //
+        // Generate body
+        //
+        Context->CurrentBlock = BodyBlock;
+        IrGenStatement (Context, Stmt->For.Body);
+        BrInstr = IrCreateInstruction (IR_BR);
+        BrInstr->LabelId = IncrBlock->Id;
+        IrAppendInstruction (Context->CurrentBlock, BrInstr);
+        IrAddEdge (Context->CurrentBlock, IncrBlock);
+
+        //
+        // Generate increment
+        //
+        Context->CurrentBlock = IncrBlock;
+        if (Stmt->For.Increment != NULL) {
+          IrGenExpression (Context, Stmt->For.Increment);
+        }
+        BrInstr = IrCreateInstruction (IR_BR);
+        BrInstr->LabelId = CondBlock->Id;
+        IrAppendInstruction (Context->CurrentBlock, BrInstr);
+        IrAddEdge (Context->CurrentBlock, CondBlock);
+
+        //
+        // Restore break/continue targets
+        //
+        Context->BreakTarget = SaveBreak;
+        Context->ContinueTarget = SaveContinue;
+
+        Context->CurrentBlock = ExitBlock;
+      }
+      break;
+
+    case AST_STMT_DO_WHILE:
+      {
+        IR_OPERAND      Cond;
+        IR_BASIC_BLOCK  *BodyBlock, *CondBlock, *ExitBlock;
+        IR_BASIC_BLOCK  *SaveBreak, *SaveContinue;
+        IR_INSTRUCTION  *BrInstr;
+
+        //
+        // Create blocks
+        //
+        BodyBlock = IrCreateBasicBlock (Context->CurrentFunc, "do.body");
+        CondBlock = IrCreateBasicBlock (Context->CurrentFunc, "do.cond");
+        ExitBlock = IrCreateBasicBlock (Context->CurrentFunc, "do.end");
+
+        //
+        // Save break/continue targets
+        // Continue goes to condition block (check before next iteration)
+        //
+        SaveBreak = Context->BreakTarget;
+        SaveContinue = Context->ContinueTarget;
+        Context->BreakTarget = ExitBlock;
+        Context->ContinueTarget = CondBlock;
+
+        //
+        // Branch to body (do-while executes body at least once)
+        //
+        BrInstr = IrCreateInstruction (IR_BR);
+        BrInstr->LabelId = BodyBlock->Id;
+        IrAppendInstruction (Context->CurrentBlock, BrInstr);
+        IrAddEdge (Context->CurrentBlock, BodyBlock);
+
+        //
+        // Generate body
+        //
+        Context->CurrentBlock = BodyBlock;
+        IrGenStatement (Context, Stmt->While.Body);
+        BrInstr = IrCreateInstruction (IR_BR);
+        BrInstr->LabelId = CondBlock->Id;
+        IrAppendInstruction (Context->CurrentBlock, BrInstr);
+        IrAddEdge (Context->CurrentBlock, CondBlock);
+
+        //
+        // Generate condition
+        //
+        Context->CurrentBlock = CondBlock;
+        Cond = IrGenExpression (Context, Stmt->While.Condition);
+        BrInstr = IrCreateInstruction (IR_BR_COND);
+        BrInstr->Src1 = Cond;
+        BrInstr->LabelId = BodyBlock->Id;
+        BrInstr->LabelId2 = ExitBlock->Id;
+        IrAppendInstruction (Context->CurrentBlock, BrInstr);
+        IrAddEdge (Context->CurrentBlock, BodyBlock);
+        IrAddEdge (Context->CurrentBlock, ExitBlock);
+
+        //
+        // Restore break/continue targets
+        //
+        Context->BreakTarget = SaveBreak;
+        Context->ContinueTarget = SaveContinue;
+
+        Context->CurrentBlock = ExitBlock;
+      }
+      break;
+
     case AST_STMT_RETURN:
       {
         IR_INSTRUCTION  *RetInstr;

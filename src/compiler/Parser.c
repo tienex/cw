@@ -847,6 +847,26 @@ ParserParseStatement (
   }
 
   //
+  // Break statement
+  //
+  if (Tok->Type == TOK_BREAK) {
+    ParserAdvance (Parser);
+    AST_STMT  *Stmt = AstStmtCreate (AST_STMT_BREAK, &Tok->Location);
+    ParserConsume (Parser, TOK_SEMICOLON);
+    return Stmt;
+  }
+
+  //
+  // Continue statement
+  //
+  if (Tok->Type == TOK_CONTINUE) {
+    ParserAdvance (Parser);
+    AST_STMT  *Stmt = AstStmtCreate (AST_STMT_CONTINUE, &Tok->Location);
+    ParserConsume (Parser, TOK_SEMICOLON);
+    return Stmt;
+  }
+
+  //
   // While loop
   //
   if (Tok->Type == TOK_WHILE) {
@@ -858,6 +878,102 @@ ParserParseStatement (
     ParserConsume (Parser, TOK_RPAREN);
 
     Stmt->While.Body = ParserParseStatement (Parser);
+    return Stmt;
+  }
+
+  //
+  // Do-while loop
+  //
+  if (Tok->Type == TOK_DO) {
+    ParserAdvance (Parser);
+    AST_STMT  *Stmt = AstStmtCreate (AST_STMT_DO_WHILE, &Tok->Location);
+
+    //
+    // Parse body
+    //
+    Stmt->While.Body = ParserParseStatement (Parser);
+
+    //
+    // Expect 'while'
+    //
+    ParserConsume (Parser, TOK_WHILE);
+    ParserConsume (Parser, TOK_LPAREN);
+    Stmt->While.Condition = ParserParseExpression (Parser);
+    ParserConsume (Parser, TOK_RPAREN);
+    ParserConsume (Parser, TOK_SEMICOLON);
+
+    return Stmt;
+  }
+
+  //
+  // For loop
+  //
+  if (Tok->Type == TOK_FOR) {
+    ParserAdvance (Parser);
+    AST_STMT  *Stmt = AstStmtCreate (AST_STMT_FOR, &Tok->Location);
+
+    ParserConsume (Parser, TOK_LPAREN);
+
+    //
+    // Parse initializer (can be declaration or expression)
+    //
+    if (IsTypeSpecifier (Parser->CurrentToken->Type)) {
+      //
+      // C99-style: for (int i = 0; ...)
+      //
+      AST_DECL  *Decl = ParserParseDeclaration (Parser);
+      if (Decl != NULL) {
+        Stmt->For.Initializer = AstStmtCreate (AST_STMT_DECL, &Parser->CurrentToken->Location);
+        Stmt->For.Initializer->Decl.Declarations = (AST_DECL **)malloc (sizeof (AST_DECL *));
+        Stmt->For.Initializer->Decl.Declarations[0] = Decl;
+        Stmt->For.Initializer->Decl.DeclarationCount = 1;
+      } else {
+        Stmt->For.Initializer = NULL;
+      }
+    } else if (!ParserExpect (Parser, TOK_SEMICOLON)) {
+      //
+      // Expression initializer: for (i = 0; ...)
+      //
+      AST_EXPR  *InitExpr = ParserParseExpression (Parser);
+      if (InitExpr != NULL) {
+        Stmt->For.Initializer = AstStmtCreate (AST_STMT_EXPR, &Parser->CurrentToken->Location);
+        Stmt->For.Initializer->Expr.Expression = InitExpr;
+      } else {
+        Stmt->For.Initializer = NULL;
+      }
+      ParserConsume (Parser, TOK_SEMICOLON);
+    } else {
+      //
+      // Empty initializer: for (; ...)
+      //
+      ParserAdvance (Parser);
+      Stmt->For.Initializer = NULL;
+    }
+
+    //
+    // Parse condition
+    //
+    if (!ParserExpect (Parser, TOK_SEMICOLON)) {
+      Stmt->For.Condition = ParserParseExpression (Parser);
+    } else {
+      Stmt->For.Condition = NULL;
+    }
+    ParserConsume (Parser, TOK_SEMICOLON);
+
+    //
+    // Parse increment
+    //
+    if (!ParserExpect (Parser, TOK_RPAREN)) {
+      Stmt->For.Increment = ParserParseExpression (Parser);
+    } else {
+      Stmt->For.Increment = NULL;
+    }
+    ParserConsume (Parser, TOK_RPAREN);
+
+    //
+    // Parse body
+    //
+    Stmt->For.Body = ParserParseStatement (Parser);
     return Stmt;
   }
 
