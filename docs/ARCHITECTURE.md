@@ -94,8 +94,8 @@ VM exits occur on:
 ### 4.1 Scalable Vector Extension (SVE)
 
 - **Variable vector length**: 128 to 2048 bits, runtime configurable
-- **Predicate registers**: 16 predicate registers (P0-P15) for masked operations
-- **Vector registers**: 32 vector registers (V0-V31)
+- **Predicate registers**: 64 predicate registers (P0-P63) for masked operations
+- **Vector registers**: 256 vector registers (V0-V255)
 - **Scalable operations**: Operations work on vectors of any implemented length
 
 ### 4.2 Scalable Matrix Extension (SME)
@@ -207,7 +207,7 @@ Full support for:
 
 ### 7.2 Floating-Point Registers
 
-- **32 FP registers**: F0-F31 (each 128-bit for quad precision)
+- **256 FP registers**: F0-F255 (each 128-bit for quad precision)
 - **FP status register**: Flags for inexact, underflow, overflow, divide-by-zero, invalid
 - **Rounding modes**: Round to nearest (ties to even/away), toward zero, toward +∞, toward -∞
 - **Denormal support**: Full support for denormalized numbers

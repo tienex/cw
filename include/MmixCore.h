@@ -161,7 +161,7 @@ struct _MMIX_CPU_STATE {
   MMIX_VECTOR_REGISTER  VectorRegisters[MMIX_VECTOR_REGISTER_COUNT];
 
   //
-  // Predicate registers (P0-P15) for SVE
+  // Predicate registers (P0-P63) for SVE
   //
   MMIX_PREDICATE_REGISTER  PredicateRegisters[MMIX_PREDICATE_REGISTER_COUNT];
 

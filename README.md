@@ -24,9 +24,9 @@ This emulator implements:
 
 - 256 general-purpose registers (64-bit)
 - 32 special registers (rA-rZZ)
-- 32 floating-point registers (128-bit for quad precision)
-- 32 vector registers (scalable 128-2048 bits)
-- 16 predicate registers (for masked operations)
+- 256 floating-point registers (128-bit for quad precision)
+- 256 vector registers (scalable 128-2048 bits)
+- 64 predicate registers (for masked operations)
 - 8 matrix tile registers (for matrix operations)
 
 ### Instruction Set

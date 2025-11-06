@@ -79,9 +79,10 @@
 - **Notes**: Increased from 32 to 256 to match GPR count (architectural change 2025-11-06)
 
 ### Predicate Registers (SVE Extension)
-- **Count**: 16 registers (P0-P15)
+- **Count**: 64 registers (P0-P63)
 - **Width**: Variable (one bit per vector element)
 - **Usage**: Vector element masking and conditionals
+- **Notes**: Increased from 16 to 64 for wider vector parallelism (architectural change 2025-11-06)
 
 ### Matrix Tile Registers (SME Extension)
 - **Count**: 8 tiles (ZA0-ZA7)

@@ -204,9 +204,9 @@ Created comprehensive ML helper library:
 | Type | Count | Width | Notes |
 |------|-------|-------|-------|
 | General Purpose | 256 | 64-bit | $0-$255 |
-| Floating-Point | 256 | 64-bit | F0-F255 (changed from 32) |
+| Floating-Point | 256 | 128-bit | F0-F255 (changed from 32) |
 | Vector | 256 | 128-2048-bit | V0-V255 (changed from 32) |
-| Predicate | 16 | Variable | P0-P15 (SVE) |
+| Predicate | 64 | Variable | P0-P63 (SVE, changed from 16) |
 | Matrix Tiles | 8 | Variable | ZA0-ZA7 (SME) |
 | Special | 64 | 64-bit | rA-rZZ |
 
