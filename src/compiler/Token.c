@@ -139,6 +139,16 @@ STATIC CONST KEYWORD_ENTRY  mKeywordTable[] = {
   { "__offset_of",          TOK_BUILTIN_OFFSET_OF,      TRUE  },
   { "__make_pointer",       TOK_BUILTIN_MAKE_POINTER,   TRUE  },
 
+  // Open Watcom Extensions
+  { "__watcall",       TOK_WATCALL,          TRUE  },
+  { "_Packed",         TOK_PACKED,           TRUE  },
+  { "__far16",         TOK_FAR16,            TRUE  },
+  { "__segment",       TOK_SEGMENT,          TRUE  },
+  { "__self",          TOK_SELF,             TRUE  },
+  { "__loadds",        TOK_LOADDS,           TRUE  },
+  { "__saveregs",      TOK_SAVEREGS,         TRUE  },
+  { "__export",        TOK_EXPORT,           TRUE  },
+
   { NULL,            TOK_EOF,           FALSE }
 };
 
@@ -155,7 +165,7 @@ TokenIsKeyword (
   IN  TOKEN_TYPE  Type
   )
 {
-  return (Type >= TOK_AUTO && Type <= TOK_BUILTIN_MAKE_POINTER);
+  return (Type >= TOK_AUTO && Type <= TOK_EXPORT);
 }
 
 /**

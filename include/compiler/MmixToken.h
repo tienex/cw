@@ -176,6 +176,23 @@ typedef enum {
   TOK_BUILTIN_MAKE_POINTER,     // __make_pointer
 
   //
+  // Open Watcom Extensions
+  //
+  TOK_WATCALL,          // __watcall (Watcom calling convention)
+  TOK_PACKED,           // _Packed (packed struct/union)
+  TOK_FAR16,            // __far16 (16-bit far pointer)
+  TOK_SEGMENT,          // __segment (segment type)
+  TOK_SELF,             // __self (self-relative pointer)
+  TOK_PRAGMA_AUX,       // #pragma aux (auxiliary pragma)
+  TOK_DECLSPEC_WATCOM,  // __declspec (Watcom version)
+  TOK_INT64_WATCOM,     // __int64 (Watcom 64-bit int)
+  TOK_INLINE_WATCOM,    // __inline (Watcom inline)
+  TOK_LOADDS,           // __loadds (load DS register)
+  TOK_SAVEREGS,         // __saveregs (save all registers)
+  TOK_EXPORT,           // __export (export function)
+  TOK_PRAGMA_INTRINSIC, // #pragma intrinsic
+
+  //
   // Operators
   //
   TOK_PLUS,             // +
