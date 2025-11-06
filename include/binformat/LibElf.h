@@ -274,6 +274,141 @@
 #define ELF_NOTE_SOLARIS  "SUNW Solaris" ///< Solaris notes
 
 ///
+/// ELF Dynamic Section Entries (d_tag values)
+/// Used for dynamic linking, shared libraries, and runtime behavior
+///
+#define DT_NULL             0    ///< End of dynamic section
+#define DT_NEEDED           1    ///< Name of needed library
+#define DT_PLTRELSZ         2    ///< Size of PLT relocs
+#define DT_PLTGOT           3    ///< PLT and/or GOT address
+#define DT_HASH             4    ///< Symbol hash table address
+#define DT_STRTAB           5    ///< String table address
+#define DT_SYMTAB           6    ///< Symbol table address
+#define DT_RELA             7    ///< Relocation table address
+#define DT_RELASZ           8    ///< Relocation table size
+#define DT_RELAENT          9    ///< Relocation entry size
+#define DT_STRSZ            10   ///< String table size
+#define DT_SYMENT           11   ///< Symbol table entry size
+#define DT_INIT             12   ///< Initialization function address
+#define DT_FINI             13   ///< Termination function address
+#define DT_SONAME           14   ///< Shared object name
+#define DT_RPATH            15   ///< Library search path (deprecated)
+#define DT_SYMBOLIC         16   ///< Symbol resolution starts here
+#define DT_REL              17   ///< Relocation table address
+#define DT_RELSZ            18   ///< Relocation table size
+#define DT_RELENT           19   ///< Relocation entry size
+#define DT_PLTREL           20   ///< Type of reloc in PLT
+#define DT_DEBUG            21   ///< For debugging
+#define DT_TEXTREL          22   ///< Reloc might modify .text
+#define DT_JMPREL           23   ///< PLT relocation entries
+#define DT_BIND_NOW         24   ///< Process all relocations at load
+#define DT_INIT_ARRAY       25   ///< Array of init functions
+#define DT_FINI_ARRAY       26   ///< Array of termination functions
+#define DT_INIT_ARRAYSZ     27   ///< Size of init array
+#define DT_FINI_ARRAYSZ     28   ///< Size of fini array
+#define DT_RUNPATH          29   ///< Library search path
+#define DT_FLAGS            30   ///< Flags
+#define DT_ENCODING         32   ///< Start of encoded range
+#define DT_PREINIT_ARRAY    32   ///< Array of preinit functions
+#define DT_PREINIT_ARRAYSZ  33   ///< Size of preinit array
+#define DT_SYMTAB_SHNDX     34   ///< Extended section indices
+
+///
+/// DT_* entries which fall between DT_VALRNGLO and DT_VALRNGHI use
+/// the d_un.d_val field of the Elf*_Dyn structure.
+///
+#define DT_VALRNGLO         0x6ffffd00
+#define DT_GNU_PRELINKED    0x6ffffdf5  ///< Prelinking timestamp
+#define DT_GNU_CONFLICTSZ   0x6ffffdf6  ///< Size of conflict section
+#define DT_GNU_LIBLISTSZ    0x6ffffdf7  ///< Size of library list
+#define DT_CHECKSUM         0x6ffffdf8  ///< System checksum
+#define DT_PLTPADSZ         0x6ffffdf9  ///< PLT padding size
+#define DT_MOVEENT          0x6ffffdfa  ///< Move table entry size
+#define DT_MOVESZ           0x6ffffdfb  ///< Move table size
+#define DT_FEATURE_1        0x6ffffdfc  ///< Feature selection
+#define DT_POSFLAG_1        0x6ffffdfd  ///< Flags for positional init/fini
+#define DT_SYMINSZ          0x6ffffdfe  ///< Symbol information table size
+#define DT_SYMINENT         0x6ffffdff  ///< Symbol information entry size
+#define DT_VALRNGHI         0x6ffffdff
+
+///
+/// DT_* entries which fall between DT_ADDRRNGLO and DT_ADDRRNGHI use
+/// the d_un.d_ptr field of the Elf*_Dyn structure.
+///
+#define DT_ADDRRNGLO        0x6ffffe00
+#define DT_GNU_HASH         0x6ffffef5  ///< GNU-style hash table
+#define DT_TLSDESC_PLT      0x6ffffef6  ///< PLT entry for TLS descriptor
+#define DT_TLSDESC_GOT      0x6ffffef7  ///< GOT entry for TLS descriptor
+#define DT_GNU_CONFLICT     0x6ffffef8  ///< Address of conflict section
+#define DT_GNU_LIBLIST      0x6ffffef9  ///< Address of library list
+#define DT_CONFIG           0x6ffffefa  ///< Configuration file
+#define DT_DEPAUDIT         0x6ffffefb  ///< Audit library
+#define DT_AUDIT            0x6ffffefc  ///< Audit library
+#define DT_PLTPAD           0x6ffffefd  ///< PLT padding
+#define DT_MOVETAB          0x6ffffefe  ///< Move table
+#define DT_SYMINFO          0x6ffffeff  ///< Symbol information table
+#define DT_ADDRRNGHI        0x6ffffeff
+
+///
+/// DT_VERSYM and DT_VERDEF/DT_VERNEED entries
+///
+#define DT_VERSYM           0x6ffffff0  ///< Version symbol table
+#define DT_RELACOUNT        0x6ffffff9  ///< Count of RELATIVE relocs
+#define DT_RELCOUNT         0x6ffffffa  ///< Count of RELATIVE relocs
+#define DT_FLAGS_1          0x6ffffffb  ///< State flags
+#define DT_VERDEF           0x6ffffffc  ///< Version definition table
+#define DT_VERDEFNUM        0x6ffffffd  ///< Number of version definitions
+#define DT_VERNEED          0x6ffffffe  ///< Version dependency table
+#define DT_VERNEEDNUM       0x6fffffff  ///< Number of version dependencies
+
+///
+/// Processor-specific dynamic entries
+///
+#define DT_LOPROC           0x70000000  ///< Processor-specific start
+#define DT_HIPROC           0x7fffffff  ///< Processor-specific end
+
+///
+/// DT_FLAGS values
+///
+#define DF_ORIGIN           0x00000001  ///< Object may use $ORIGIN
+#define DF_SYMBOLIC         0x00000002  ///< Symbol resolutions starts here
+#define DF_TEXTREL          0x00000004  ///< Object contains text relocations
+#define DF_BIND_NOW         0x00000008  ///< No lazy binding
+#define DF_STATIC_TLS       0x00000010  ///< Module uses static TLS
+
+///
+/// DT_FLAGS_1 values
+///
+#define DF_1_NOW            0x00000001  ///< Complete relocation processing
+#define DF_1_GLOBAL         0x00000002  ///< Set RTLD_GLOBAL
+#define DF_1_GROUP          0x00000004  ///< Set RTLD_GROUP
+#define DF_1_NODELETE       0x00000008  ///< Set RTLD_NODELETE
+#define DF_1_LOADFLTR       0x00000010  ///< Trigger filtee loading
+#define DF_1_INITFIRST      0x00000020  ///< Initialize first
+#define DF_1_NOOPEN         0x00000040  ///< Cannot dlopen
+#define DF_1_ORIGIN         0x00000080  ///< $ORIGIN processing required
+#define DF_1_DIRECT         0x00000100  ///< Direct binding enabled
+#define DF_1_TRANS          0x00000200  ///< Object is a translator
+#define DF_1_INTERPOSE      0x00000400  ///< Object is an interposer
+#define DF_1_NODEFLIB       0x00000800  ///< Ignore default library search
+#define DF_1_NODUMP         0x00001000  ///< Object cannot be dumped
+#define DF_1_CONFALT        0x00002000  ///< Configuration alternative
+#define DF_1_ENDFILTEE      0x00004000  ///< Filtee terminates filter search
+#define DF_1_DISPRELDNE     0x00008000  ///< Displacement relocation done
+#define DF_1_DISPRELPND     0x00010000  ///< Displacement relocation pending
+#define DF_1_NODIRECT       0x00020000  ///< No direct binding
+#define DF_1_IGNMULDEF      0x00040000  ///< Ignore multiple definitions
+#define DF_1_NOKSYMS        0x00080000  ///< No keep symbols
+#define DF_1_NOHDR          0x00100000  ///< No header
+#define DF_1_EDITED         0x00200000  ///< Object has been edited
+#define DF_1_NORELOC        0x00400000  ///< No relocation processing
+#define DF_1_SYMINTPOSE     0x00800000  ///< Symbol interposition
+#define DF_1_GLOBAUDIT      0x01000000  ///< Global audit
+#define DF_1_SINGLETON      0x02000000  ///< Singleton object
+#define DF_1_STUB           0x04000000  ///< Stub object
+#define DF_1_PIE            0x08000000  ///< Position Independent Executable
+
+///
 /// Get the ELF library API table.
 ///
 /// @return Pointer to ELF library API table.

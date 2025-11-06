@@ -377,6 +377,131 @@
 #define AOUT_SF_SHARED       0x20       ///< Section is shared
 
 ///
+/// Additional Historical a.out Variants
+///
+
+//
+/// Convex a.out Magic Numbers
+///
+#define CONVEX_OMAGIC        0407       ///< Convex old impure
+#define CONVEX_NMAGIC        0410       ///< Convex pure
+#define CONVEX_ZMAGIC        0413       ///< Convex demand paged
+
+//
+/// Alliant FX a.out Magic Numbers
+///
+#define ALLIANT_MAGIC        0x010A     ///< Alliant FX/Series
+
+//
+/// Gould a.out Magic Numbers
+///
+#define GOULD_MAGIC          0x0109     ///< Gould PN/NP series
+
+//
+/// Clipper a.out Magic Numbers
+///
+#define CLIPPER_MAGIC        0x0111     ///< Fairchild Clipper
+
+//
+/// M68K a.out Machine Types (extended)
+///
+#define M68K_MAGIC_010       0x010C     ///< Motorola 68010
+#define M68K_MAGIC_020       0x010D     ///< Motorola 68020
+#define M68K_MAGIC_030       0x010E     ///< Motorola 68030
+#define M68K_MAGIC_040       0x010F     ///< Motorola 68040
+
+//
+/// NS32K a.out Magic Numbers
+///
+#define NS32K_OMAGIC         0407       ///< NS32K old impure
+#define NS32K_NMAGIC         0410       ///< NS32K pure
+#define NS32K_ZMAGIC         0413       ///< NS32K demand paged
+#define NS32K_MAGIC_032      0x010A     ///< NS32032
+#define NS32K_MAGIC_532      0x0185     ///< NS32532
+
+//
+/// WE32100 a.out Magic Numbers
+///
+#define WE32K_MAGIC          0x0170     ///< AT&T WE32100
+
+//
+/// Alpha a.out (for NetBSD/Alpha)
+///
+#define ALPHA_OMAGIC         0407       ///< Alpha old impure
+#define ALPHA_NMAGIC         0410       ///< Alpha pure
+#define ALPHA_ZMAGIC         0413       ///< Alpha demand paged
+
+//
+/// SuperH (SH) a.out Magic Numbers
+///
+#define SH_OMAGIC            0407       ///< SH old impure
+#define SH_NMAGIC            0410       ///< SH pure
+#define SH_ZMAGIC            0413       ///< SH demand paged
+#define SH3_MAGIC            0x0103     ///< SH3
+#define SH4_MAGIC            0x0104     ///< SH4
+
+//
+/// MIPS-specific relocation types (extended)
+///
+#define AOUT_MIPS_RELOC_LITERAL  24     ///< MIPS literal
+#define AOUT_MIPS_RELOC_LITUSE   25     ///< MIPS literal use
+#define AOUT_MIPS_RELOC_GPDISP   26     ///< MIPS GP displacement
+#define AOUT_MIPS_RELOC_GPVALUE  27     ///< MIPS GP value
+
+//
+/// SPARC-specific relocation types (extended)
+///
+#define AOUT_SPARC_RELOC_GOT10   28     ///< SPARC GOT 10 bit
+#define AOUT_SPARC_RELOC_GOT13   29     ///< SPARC GOT 13 bit
+#define AOUT_SPARC_RELOC_GOT22   30     ///< SPARC GOT 22 bit
+#define AOUT_SPARC_RELOC_PC10    31     ///< SPARC PC 10 bit
+#define AOUT_SPARC_RELOC_PC22    32     ///< SPARC PC 22 bit
+#define AOUT_SPARC_RELOC_WPLT30  33     ///< SPARC WPLT 30 bit
+
+//
+/// 68K-specific relocation types
+///
+#define AOUT_68K_RELOC_GOTOFF16  34     ///< 68K GOT offset 16 bit
+#define AOUT_68K_RELOC_GOTOFF32  35     ///< 68K GOT offset 32 bit
+#define AOUT_68K_RELOC_PLT16     36     ///< 68K PLT 16 bit
+#define AOUT_68K_RELOC_PLT32     37     ///< 68K PLT 32 bit
+
+//
+/// x86-specific relocation types
+///
+#define AOUT_386_RELOC_GOTPC     38     ///< i386 GOT PC-relative
+#define AOUT_386_RELOC_GOTOFF    39     ///< i386 GOT offset
+#define AOUT_386_RELOC_PLT32     40     ///< i386 PLT 32 bit
+
+//
+/// ARM-specific relocation types
+///
+#define AOUT_ARM_RELOC_PC24      41     ///< ARM PC-relative 24 bit
+#define AOUT_ARM_RELOC_GOT32     42     ///< ARM GOT 32 bit
+#define AOUT_ARM_RELOC_PLT32     43     ///< ARM PLT 32 bit
+#define AOUT_ARM_RELOC_GOTOFF    44     ///< ARM GOT offset
+
+//
+/// a.out Machine Types (comprehensive)
+///
+#define AOUT_M_UNKNOWN       0          ///< Unknown
+#define AOUT_M_68010         1          ///< Motorola 68010
+#define AOUT_M_68020         2          ///< Motorola 68020
+#define AOUT_M_SPARC         3          ///< SPARC
+#define AOUT_M_386           100        ///< Intel 386
+#define AOUT_M_MIPS1         151        ///< MIPS R2000/R3000
+#define AOUT_M_MIPS2         152        ///< MIPS R4000/R6000
+#define AOUT_M_29K           160        ///< AMD 29000
+#define AOUT_M_ARM           165        ///< ARM
+#define AOUT_M_SH3           166        ///< SuperH SH3
+#define AOUT_M_PPC           175        ///< PowerPC
+#define AOUT_M_ALPHA         180        ///< DEC Alpha
+#define AOUT_M_VAX           185        ///< DEC VAX
+#define AOUT_M_NS32K         190        ///< NS32K
+#define AOUT_M_WE32K         195        ///< AT&T WE32K
+#define AOUT_M_SPARC64       200        ///< SPARC v9 64-bit
+
+///
 /// Get the a.out library API table.
 ///
 /// @return Pointer to a.out library API table.
