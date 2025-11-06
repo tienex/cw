@@ -162,6 +162,7 @@ typedef struct _IR_SYMBOL {
   CHAR8                 *Name;         // Variable name
   IR_OPERAND            Operand;       // Operand (register/const/etc)
   AST_TYPE              *Type;         // Variable type
+  AST_DECL              *Decl;         // Original declaration (for address-taken analysis)
   BOOLEAN               IsParameter;   // Is function parameter
   UINT32                ParamIndex;    // Parameter index if parameter
   struct _IR_SYMBOL     *Next;         // Next in hash chain
@@ -477,6 +478,7 @@ IrDestroySymbolTable (
   @param[in]      Name          Symbol name.
   @param[in]      Operand       Operand for this symbol.
   @param[in]      Type          Symbol type.
+  @param[in]      Decl          Original AST declaration.
   @param[in]      IsParameter   TRUE if function parameter.
   @param[in]      ParamIndex    Parameter index if parameter.
 
@@ -489,6 +491,7 @@ IrAddSymbol (
   IN     CONST CHAR8      *Name,
   IN     IR_OPERAND       Operand,
   IN     AST_TYPE         *Type,
+  IN     AST_DECL         *Decl,
   IN     BOOLEAN          IsParameter,
   IN     UINT32           ParamIndex
   );

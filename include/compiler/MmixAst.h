@@ -472,6 +472,7 @@ struct _AST_DECL {
     struct {
       AST_EXPR      *Initializer;
       BOOLEAN       IsTentative;
+      BOOLEAN       AddressTaken;     // TRUE if address-of (&) is used on this variable
     } Var;
 
     struct {
