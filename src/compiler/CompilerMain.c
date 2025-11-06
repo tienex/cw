@@ -323,11 +323,7 @@ main (
     return 1;
   }
 
-  fprintf (stderr, "DEBUG: Before ParserParseTranslationUnit\n");
-  fflush (stderr);
   Ast = ParserParseTranslationUnit (Parser);
-  fprintf (stderr, "DEBUG: After ParserParseTranslationUnit\n");
-  fflush (stderr);
 
   if (Ast == NULL || Parser->ErrorCount > 0) {
     fprintf (stderr, "Error: Parsing failed with %u errors\n", Parser->ErrorCount);
@@ -354,11 +350,7 @@ main (
     printf ("\n=== Semantic Analysis ===\n");
   }
 
-  fprintf (stderr, "DEBUG: Before SemaCreate\n");
-  fflush (stderr);
   Sema = SemaCreate (Ast);
-  fprintf (stderr, "DEBUG: After SemaCreate\n");
-  fflush (stderr);
 
   if (Sema == NULL) {
     fprintf (stderr, "Error: Failed to create semantic analyzer\n");
@@ -368,11 +360,7 @@ main (
     return 1;
   }
 
-  fprintf (stderr, "DEBUG: Before SemaAnalyze\n");
-  fflush (stderr);
   if (SemaAnalyze (Sema) != MMIX_SUCCESS || Sema->ErrorCount > 0) {
-    fprintf (stderr, "DEBUG: SemaAnalyze failed\n");
-    fflush (stderr);
     fprintf (stderr, "Error: Semantic analysis failed with %u errors\n", Sema->ErrorCount);
     SemaDestroy (Sema);
     ParserDestroy (Parser);
@@ -392,11 +380,7 @@ main (
     printf ("\n=== IR Generation ===\n");
   }
 
-  fprintf (stderr, "DEBUG: Before IrCreateModule\n");
-  fflush (stderr);
   IrModule = IrCreateModule (Ast);
-  fprintf (stderr, "DEBUG: After IrCreateModule\n");
-  fflush (stderr);
 
   if (IrModule == NULL) {
     fprintf (stderr, "Error: Failed to create IR module\n");
@@ -407,11 +391,7 @@ main (
     return 1;
   }
 
-  fprintf (stderr, "DEBUG: Before IrGenerateModule\n");
-  fflush (stderr);
   if (IrGenerateModule (IrModule) != MMIX_SUCCESS) {
-    fprintf (stderr, "DEBUG: IrGenerateModule failed\n");
-    fflush (stderr);
     fprintf (stderr, "Error: IR generation failed\n");
     IrDestroyModule (IrModule);
     SemaDestroy (Sema);
@@ -447,11 +427,7 @@ main (
     return 1;
   }
 
-  fprintf (stderr, "DEBUG: Before CodeGenCreate\n");
-  fflush (stderr);
   CodeGen = CodeGenCreate (IrModule, OutputFile);
-  fprintf (stderr, "DEBUG: After CodeGenCreate\n");
-  fflush (stderr);
 
   if (CodeGen == NULL) {
     fprintf (stderr, "Error: Failed to create code generator\n");
@@ -464,11 +440,7 @@ main (
     return 1;
   }
 
-  fprintf (stderr, "DEBUG: Before CodeGenModule\n");
-  fflush (stderr);
   if (CodeGenModule (CodeGen) != MMIX_SUCCESS || CodeGen->ErrorCount > 0) {
-    fprintf (stderr, "DEBUG: CodeGenModule failed\n");
-    fflush (stderr);
     fprintf (stderr, "Error: Code generation failed with %u errors\n", CodeGen->ErrorCount);
     ExitCode = 1;
   } else {
@@ -484,43 +456,19 @@ main (
     printf ("Cleaning up...\n");
   }
 
-  fprintf (stderr, "DEBUG: Before CodeGenDestroy\n");
-  fflush (stderr);
   CodeGenDestroy (CodeGen);
-  fprintf (stderr, "DEBUG: After CodeGenDestroy\n");
-  fflush (stderr);
 
   fclose (OutputFile);
 
-  fprintf (stderr, "DEBUG: Before IrDestroyModule\n");
-  fflush (stderr);
   // IrDestroyModule (IrModule);  // TODO: Fix double free
-  fprintf (stderr, "DEBUG: After IrDestroyModule (skipped)\n");
-  fflush (stderr);
 
-  fprintf (stderr, "DEBUG: Before SemaDestroy\n");
-  fflush (stderr);
   // SemaDestroy (Sema);
-  fprintf (stderr, "DEBUG: After SemaDestroy (skipped)\n");
-  fflush (stderr);
 
-  fprintf (stderr, "DEBUG: Before ParserDestroy\n");
-  fflush (stderr);
   // ParserDestroy (Parser);
-  fprintf (stderr, "DEBUG: After ParserDestroy (skipped)\n");
-  fflush (stderr);
 
-  fprintf (stderr, "DEBUG: Before LexerDestroy\n");
-  fflush (stderr);
   LexerDestroy (Lexer);
-  fprintf (stderr, "DEBUG: After LexerDestroy\n");
-  fflush (stderr);
 
-  fprintf (stderr, "DEBUG: Before free(Source)\n");
-  fflush (stderr);
   free (Source);
-  fprintf (stderr, "DEBUG: After free(Source)\n");
-  fflush (stderr);
 
   // Note: Skipping cleanup to avoid double free
   (void)IrModule;
