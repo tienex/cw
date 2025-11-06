@@ -403,7 +403,7 @@ LexNumber (
   }
 
   Length = Lexer->Position - Start;
-  Token = TokenCreate (IsFloat ? TOK_FLOAT : TOK_INTEGER,
+  Token = TokenCreate (IsFloat ? TOK_FLOAT_LITERAL : TOK_INTEGER,
                       &Location, &Lexer->Source[Start], Length);
 
   return Token;

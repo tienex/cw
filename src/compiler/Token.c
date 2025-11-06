@@ -167,7 +167,8 @@ TokenIsLiteral (
   IN  TOKEN_TYPE  Type
   )
 {
-  return (Type >= TOK_INTEGER && Type <= TOK_RAW_STRING);
+  return (Type == TOK_INTEGER || Type == TOK_FLOAT_LITERAL ||
+          Type == TOK_CHAR_LITERAL || Type == TOK_STRING || Type == TOK_RAW_STRING);
 }
 
 /**
@@ -184,17 +185,17 @@ TokenTypeName (
   )
 {
   switch (Type) {
-    case TOK_EOF:         return "EOF";
-    case TOK_ERROR:       return "ERROR";
-    case TOK_IDENTIFIER:  return "IDENTIFIER";
-    case TOK_INTEGER:     return "INTEGER";
-    case TOK_FLOAT:       return "FLOAT";
-    case TOK_CHAR:        return "CHAR";
-    case TOK_STRING:      return "STRING";
-    case TOK_PLUS:        return "+";
-    case TOK_MINUS:       return "-";
-    case TOK_STAR:        return "*";
-    case TOK_SLASH:       return "/";
+    case TOK_EOF:           return "EOF";
+    case TOK_ERROR:         return "ERROR";
+    case TOK_IDENTIFIER:    return "IDENTIFIER";
+    case TOK_INTEGER:       return "INTEGER";
+    case TOK_FLOAT_LITERAL: return "FLOAT";
+    case TOK_CHAR_LITERAL:  return "CHAR";
+    case TOK_STRING:        return "STRING";
+    case TOK_PLUS:          return "+";
+    case TOK_MINUS:         return "-";
+    case TOK_STAR:          return "*";
+    case TOK_SLASH:         return "/";
     default:
       //
       // Search keyword table

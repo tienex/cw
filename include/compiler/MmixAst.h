@@ -95,17 +95,29 @@ typedef enum {
   AST_TYPE_VOID,              // void type
   AST_TYPE_BOOL,              // _Bool type
   AST_TYPE_CHAR,              // char type
+  AST_TYPE_UCHAR,             // unsigned char type
   AST_TYPE_SHORT,             // short type
+  AST_TYPE_USHORT,            // unsigned short type
   AST_TYPE_INT,               // int type
+  AST_TYPE_UINT,              // unsigned int type
   AST_TYPE_LONG,              // long type
+  AST_TYPE_ULONG,             // unsigned long type
   AST_TYPE_LONG_LONG,         // long long type
+  AST_TYPE_ULONG_LONG,        // unsigned long long type
+  AST_TYPE_INT8,              // __int8 type (MSVC)
+  AST_TYPE_INT16,             // __int16 type (MSVC)
+  AST_TYPE_INT32,             // __int32 type (MSVC)
+  AST_TYPE_INT64,             // __int64 type (MSVC)
   AST_TYPE_INT128,            // __int128 type (GNU)
   AST_TYPE_FLOAT,             // float type
   AST_TYPE_DOUBLE,            // double type
   AST_TYPE_LONG_DOUBLE,       // long double type
   AST_TYPE_FLOAT128,          // __float128 type (GNU)
   AST_TYPE_COMPLEX,           // _Complex type
+  AST_TYPE_FLOAT_COMPLEX,     // float _Complex type
+  AST_TYPE_DOUBLE_COMPLEX,    // double _Complex type
   AST_TYPE_BITINT,            // _BitInt(N) type (C23)
+  AST_TYPE_QUALIFIED,         // Qualified type (const/volatile/restrict)
   AST_TYPE_POINTER,           // Pointer type
   AST_TYPE_ARRAY,             // Array type
   AST_TYPE_FUNCTION,          // Function type
@@ -114,11 +126,6 @@ typedef enum {
   AST_TYPE_ENUM,              // Enum type
   AST_TYPE_TYPEOF,            // typeof type (C23/GNU)
   AST_TYPE_ATOMIC,            // _Atomic type (C11)
-
-  //
-  // Translation unit
-  //
-  AST_TRANSLATION_UNIT,       // Top-level translation unit
 } AST_NODE_KIND;
 
 /**
@@ -259,6 +266,14 @@ struct _AST_TYPE {
     struct {
       AST_EXPR      *Expr;            // typeof expression
     } Typeof;
+
+    struct {
+      AST_TYPE      *BaseType;        // Base type for qualified type
+      BOOLEAN       IsConst;
+      BOOLEAN       IsVolatile;
+      BOOLEAN       IsRestrict;
+      BOOLEAN       IsAtomic;
+    } Qualified;
   };
 };
 

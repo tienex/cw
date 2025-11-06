@@ -30,8 +30,8 @@ typedef enum {
   // Literals
   //
   TOK_INTEGER,          // Integer literal (123, 0x456, 0b1010, 1_000_000)
-  TOK_FLOAT,            // Float literal (3.14, 1.0e-5, 0x1.2p3)
-  TOK_CHAR,             // Character literal ('a', L'b', u'c', U'd')
+  TOK_FLOAT_LITERAL,    // Float literal (3.14, 1.0e-5, 0x1.2p3)
+  TOK_CHAR_LITERAL,     // Character literal ('a', L'b', u'c', U'd')
   TOK_STRING,           // String literal ("hello", L"wide", u8"utf8")
   TOK_RAW_STRING,       // Raw string (MetaWare: r"C:\path")
 

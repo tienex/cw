@@ -742,6 +742,561 @@ ParserParseStatement (
 }
 
 /**
+  Check if token is a type qualifier.
+
+  @param[in]      Type          Token type.
+
+  @return  TRUE if type qualifier, FALSE otherwise.
+
+**/
+STATIC
+BOOLEAN
+IsTypeQualifier (
+  IN  TOKEN_TYPE  Type
+  )
+{
+  return (Type == TOK_CONST || Type == TOK_VOLATILE || Type == TOK_RESTRICT ||
+          Type == TOK_ATOMIC);
+}
+
+/**
+  Check if token is a storage class specifier.
+
+  @param[in]      Type          Token type.
+
+  @return  TRUE if storage class, FALSE otherwise.
+
+**/
+STATIC
+BOOLEAN
+IsStorageClassSpecifier (
+  IN  TOKEN_TYPE  Type
+  )
+{
+  return (Type == TOK_AUTO || Type == TOK_REGISTER || Type == TOK_STATIC ||
+          Type == TOK_EXTERN || Type == TOK_TYPEDEF || Type == TOK_THREAD_LOCAL);
+}
+
+/**
+  Check if token is a type specifier.
+
+  @param[in]      Type          Token type.
+
+  @return  TRUE if type specifier, FALSE otherwise.
+
+**/
+STATIC
+BOOLEAN
+IsTypeSpecifier (
+  IN  TOKEN_TYPE  Type
+  )
+{
+  return (Type == TOK_VOID || Type == TOK_CHAR || Type == TOK_SHORT ||
+          Type == TOK_INT || Type == TOK_LONG || Type == TOK_FLOAT ||
+          Type == TOK_DOUBLE || Type == TOK_SIGNED || Type == TOK_UNSIGNED ||
+          Type == TOK_BOOL || Type == TOK_COMPLEX || Type == TOK_IMAGINARY ||
+          Type == TOK_STRUCT || Type == TOK_UNION || Type == TOK_ENUM ||
+          Type == TOK_TYPEOF || Type == TOK_TYPEOF_UNQUAL || Type == TOK_TYPEOF_GNU ||
+          Type == TOK_BITINT || Type == TOK_INT128 || Type == TOK_FLOAT128 ||
+          Type == TOK_INT8 || Type == TOK_INT16 || Type == TOK_INT32 || Type == TOK_INT64);
+}
+
+/**
+  Parse type qualifiers.
+
+  @param[in,out]  Parser        Parser state.
+  @param[out]     IsConst       Pointer to receive const flag.
+  @param[out]     IsVolatile    Pointer to receive volatile flag.
+  @param[out]     IsRestrict    Pointer to receive restrict flag.
+  @param[out]     IsAtomic      Pointer to receive atomic flag.
+
+**/
+STATIC
+VOID
+ParseTypeQualifiers (
+  IN OUT PARSER_STATE  *Parser,
+  OUT    BOOLEAN       *IsConst,
+  OUT    BOOLEAN       *IsVolatile,
+  OUT    BOOLEAN       *IsRestrict,
+  OUT    BOOLEAN       *IsAtomic
+  )
+{
+  *IsConst = FALSE;
+  *IsVolatile = FALSE;
+  *IsRestrict = FALSE;
+  *IsAtomic = FALSE;
+
+  while (IsTypeQualifier (Parser->CurrentToken->Type)) {
+    switch (Parser->CurrentToken->Type) {
+      case TOK_CONST:
+        *IsConst = TRUE;
+        break;
+      case TOK_VOLATILE:
+        *IsVolatile = TRUE;
+        break;
+      case TOK_RESTRICT:
+        *IsRestrict = TRUE;
+        break;
+      case TOK_ATOMIC:
+        *IsAtomic = TRUE;
+        break;
+      default:
+        break;
+    }
+    ParserAdvance (Parser);
+  }
+}
+
+/**
+  Parse struct or union declaration.
+
+  @param[in,out]  Parser        Parser state.
+  @param[in]      IsUnion       TRUE for union, FALSE for struct.
+
+  @return  Pointer to type node, or NULL on error.
+
+**/
+STATIC
+AST_TYPE *
+ParseStructOrUnion (
+  IN OUT PARSER_STATE  *Parser,
+  IN     BOOLEAN       IsUnion
+  )
+{
+  TOKEN_LOCATION  Loc = Parser->CurrentToken->Location;
+  ParserAdvance (Parser);  // Skip 'struct' or 'union'
+
+  CHAR8  *Tag = NULL;
+
+  //
+  // Optional tag name
+  //
+  if (ParserExpect (Parser, TOK_IDENTIFIER)) {
+    Tag = strdup (Parser->CurrentToken->Text);
+    ParserAdvance (Parser);
+  }
+
+  //
+  // Check for definition (has body)
+  //
+  if (!ParserExpect (Parser, TOK_LBRACE)) {
+    //
+    // Forward declaration or reference
+    //
+    AST_TYPE  *Type = AstTypeCreate (IsUnion ? AST_TYPE_UNION : AST_TYPE_STRUCT);
+    Type->Struct.Name = Tag;
+    Type->Struct.Fields = NULL;
+    Type->Struct.FieldCount = 0;
+    Type->Struct.IsComplete = FALSE;
+    return Type;
+  }
+
+  //
+  // Parse struct/union body
+  //
+  ParserAdvance (Parser);  // Skip '{'
+
+  AST_TYPE  *Type = AstTypeCreate (IsUnion ? AST_TYPE_UNION : AST_TYPE_STRUCT);
+  Type->Struct.Name = Tag;
+  Type->Struct.FieldCount = 0;
+  Type->Struct.Fields = NULL;
+  Type->Struct.IsComplete = TRUE;
+
+  // TODO: Parse field declarations
+  // For now, just skip to closing brace
+
+  while (!ParserExpect (Parser, TOK_RBRACE) && !ParserExpect (Parser, TOK_EOF)) {
+    ParserAdvance (Parser);
+  }
+
+  ParserConsume (Parser, TOK_RBRACE);
+  return Type;
+}
+
+/**
+  Parse enum declaration.
+
+  @param[in,out]  Parser        Parser state.
+
+  @return  Pointer to type node, or NULL on error.
+
+**/
+STATIC
+AST_TYPE *
+ParseEnum (
+  IN OUT PARSER_STATE  *Parser
+  )
+{
+  TOKEN_LOCATION  Loc = Parser->CurrentToken->Location;
+  ParserAdvance (Parser);  // Skip 'enum'
+
+  CHAR8  *Tag = NULL;
+
+  //
+  // Optional tag name
+  //
+  if (ParserExpect (Parser, TOK_IDENTIFIER)) {
+    Tag = strdup (Parser->CurrentToken->Text);
+    ParserAdvance (Parser);
+  }
+
+  //
+  // Check for definition (has body)
+  //
+  if (!ParserExpect (Parser, TOK_LBRACE)) {
+    //
+    // Forward declaration or reference
+    //
+    AST_TYPE  *Type = AstTypeCreate (AST_TYPE_ENUM);
+    Type->Enum.Name = Tag;
+    Type->Enum.Enumerators = NULL;
+    Type->Enum.EnumeratorCount = 0;
+    Type->Enum.UnderlyingType = NULL;
+    return Type;
+  }
+
+  //
+  // Parse enum body
+  //
+  ParserAdvance (Parser);  // Skip '{'
+
+  AST_TYPE  *Type = AstTypeCreate (AST_TYPE_ENUM);
+  Type->Enum.Name = Tag;
+  Type->Enum.EnumeratorCount = 0;
+  Type->Enum.Enumerators = NULL;
+  Type->Enum.UnderlyingType = NULL;
+
+  // TODO: Parse enumerators
+  // For now, just skip to closing brace
+
+  while (!ParserExpect (Parser, TOK_RBRACE) && !ParserExpect (Parser, TOK_EOF)) {
+    ParserAdvance (Parser);
+  }
+
+  ParserConsume (Parser, TOK_RBRACE);
+  return Type;
+}
+
+/**
+  Parse base type specifiers.
+
+  @param[in,out]  Parser        Parser state.
+
+  @return  Pointer to type node, or NULL on error.
+
+**/
+STATIC
+AST_TYPE *
+ParseTypeSpecifiers (
+  IN OUT PARSER_STATE  *Parser
+  )
+{
+  BOOLEAN  HasVoid = FALSE;
+  BOOLEAN  HasChar = FALSE;
+  BOOLEAN  HasShort = FALSE;
+  BOOLEAN  HasInt = FALSE;
+  BOOLEAN  HasLong = FALSE;
+  BOOLEAN  HasLongLong = FALSE;
+  BOOLEAN  HasFloat = FALSE;
+  BOOLEAN  HasDouble = FALSE;
+  BOOLEAN  HasSigned = FALSE;
+  BOOLEAN  HasUnsigned = FALSE;
+  BOOLEAN  HasBool = FALSE;
+  BOOLEAN  HasComplex = FALSE;
+  BOOLEAN  HasImaginary = FALSE;
+
+  //
+  // Parse type specifiers (can have multiple tokens like 'unsigned long long')
+  //
+  while (IsTypeSpecifier (Parser->CurrentToken->Type)) {
+    switch (Parser->CurrentToken->Type) {
+      case TOK_VOID:
+        HasVoid = TRUE;
+        break;
+      case TOK_CHAR:
+        HasChar = TRUE;
+        break;
+      case TOK_SHORT:
+        HasShort = TRUE;
+        break;
+      case TOK_INT:
+        HasInt = TRUE;
+        break;
+      case TOK_LONG:
+        if (HasLong) {
+          HasLongLong = TRUE;
+        }
+        HasLong = TRUE;
+        break;
+      case TOK_FLOAT:
+        HasFloat = TRUE;
+        break;
+      case TOK_DOUBLE:
+        HasDouble = TRUE;
+        break;
+      case TOK_SIGNED:
+        HasSigned = TRUE;
+        break;
+      case TOK_UNSIGNED:
+        HasUnsigned = TRUE;
+        break;
+      case TOK_BOOL:
+        HasBool = TRUE;
+        break;
+      case TOK_COMPLEX:
+        HasComplex = TRUE;
+        break;
+      case TOK_IMAGINARY:
+        HasImaginary = TRUE;
+        break;
+
+      case TOK_STRUCT:
+        return ParseStructOrUnion (Parser, FALSE);
+
+      case TOK_UNION:
+        return ParseStructOrUnion (Parser, TRUE);
+
+      case TOK_ENUM:
+        return ParseEnum (Parser);
+
+      case TOK_INT8:
+        ParserAdvance (Parser);
+        return AstTypeCreate (AST_TYPE_INT8);
+        break;
+
+      case TOK_INT16:
+        ParserAdvance (Parser);
+        return AstTypeCreate (AST_TYPE_INT16);
+        break;
+
+      case TOK_INT32:
+        ParserAdvance (Parser);
+        return AstTypeCreate (AST_TYPE_INT32);
+        break;
+
+      case TOK_INT64:
+        ParserAdvance (Parser);
+        return AstTypeCreate (AST_TYPE_INT64);
+        break;
+
+      case TOK_INT128:
+        ParserAdvance (Parser);
+        return AstTypeCreate (AST_TYPE_INT128);
+        break;
+
+      case TOK_FLOAT128:
+        ParserAdvance (Parser);
+        return AstTypeCreate (AST_TYPE_FLOAT128);
+        break;
+
+      case TOK_TYPEOF:
+      case TOK_TYPEOF_UNQUAL:
+      case TOK_TYPEOF_GNU:
+        // TODO: Implement typeof
+        ParserError (Parser, "typeof not yet implemented");
+        return NULL;
+
+      case TOK_BITINT:
+        // TODO: Implement _BitInt(N)
+        ParserError (Parser, "_BitInt not yet implemented");
+        return NULL;
+
+      default:
+        break;
+    }
+
+    ParserAdvance (Parser);
+  }
+
+  //
+  // Determine final type from combination
+  //
+  if (HasVoid) {
+    return AstTypeCreate (AST_TYPE_VOID);
+  }
+
+  if (HasBool) {
+    return AstTypeCreate (AST_TYPE_BOOL);
+  }
+
+  if (HasChar) {
+    if (HasUnsigned) {
+      return AstTypeCreate (AST_TYPE_UCHAR);
+    }
+    return AstTypeCreate (AST_TYPE_CHAR);
+  }
+
+  if (HasFloat) {
+    if (HasComplex) {
+      return AstTypeCreate (AST_TYPE_FLOAT_COMPLEX);
+    }
+    return AstTypeCreate (AST_TYPE_FLOAT);
+  }
+
+  if (HasDouble) {
+    if (HasLong) {
+      return AstTypeCreate (AST_TYPE_LONG_DOUBLE);
+    }
+    if (HasComplex) {
+      return AstTypeCreate (AST_TYPE_DOUBLE_COMPLEX);
+    }
+    return AstTypeCreate (AST_TYPE_DOUBLE);
+  }
+
+  if (HasShort) {
+    if (HasUnsigned) {
+      return AstTypeCreate (AST_TYPE_USHORT);
+    }
+    return AstTypeCreate (AST_TYPE_SHORT);
+  }
+
+  if (HasLongLong) {
+    if (HasUnsigned) {
+      return AstTypeCreate (AST_TYPE_ULONG_LONG);
+    }
+    return AstTypeCreate (AST_TYPE_LONG_LONG);
+  }
+
+  if (HasLong) {
+    if (HasUnsigned) {
+      return AstTypeCreate (AST_TYPE_ULONG);
+    }
+    return AstTypeCreate (AST_TYPE_LONG);
+  }
+
+  //
+  // Default to int (can be 'int', 'signed', 'unsigned', or implied)
+  //
+  if (HasUnsigned) {
+    return AstTypeCreate (AST_TYPE_UINT);
+  }
+
+  return AstTypeCreate (AST_TYPE_INT);
+}
+
+/**
+  Parse declarator and apply it to base type.
+
+  @param[in,out]  Parser        Parser state.
+  @param[in]      BaseType      Base type to modify.
+  @param[out]     Name          Pointer to receive declarator name.
+
+  @return  Pointer to complete type, or NULL on error.
+
+**/
+STATIC
+AST_TYPE *
+ParseDeclarator (
+  IN OUT PARSER_STATE  *Parser,
+  IN     AST_TYPE      *BaseType,
+  OUT    CHAR8         **Name
+  )
+{
+  AST_TYPE  *Type = BaseType;
+  *Name = NULL;
+
+  //
+  // Parse pointer prefix (* ...)
+  //
+  while (ParserExpect (Parser, TOK_STAR)) {
+    ParserAdvance (Parser);
+
+    //
+    // Parse qualifiers after *
+    //
+    BOOLEAN  IsConst, IsVolatile, IsRestrict, IsAtomic;
+    ParseTypeQualifiers (Parser, &IsConst, &IsVolatile, &IsRestrict, &IsAtomic);
+
+    AST_TYPE  *PtrType = AstTypeCreate (AST_TYPE_POINTER);
+    PtrType->Pointer.PointeeType = Type;
+    PtrType->Pointer.IsRestrict = IsRestrict;
+
+    //
+    // Apply const/volatile/atomic qualifiers to the pointer type
+    //
+    if (IsConst) {
+      PtrType->Qualifiers |= QUAL_CONST;
+    }
+    if (IsVolatile) {
+      PtrType->Qualifiers |= QUAL_VOLATILE;
+    }
+    if (IsAtomic) {
+      PtrType->Qualifiers |= QUAL_ATOMIC;
+    }
+
+    Type = PtrType;
+  }
+
+  //
+  // Parse direct declarator (name, arrays, functions, parentheses)
+  //
+  if (ParserExpect (Parser, TOK_IDENTIFIER)) {
+    *Name = strdup (Parser->CurrentToken->Text);
+    ParserAdvance (Parser);
+  } else if (ParserExpect (Parser, TOK_LPAREN)) {
+    //
+    // Parenthesized declarator
+    //
+    ParserAdvance (Parser);
+    Type = ParseDeclarator (Parser, Type, Name);
+    ParserConsume (Parser, TOK_RPAREN);
+  }
+
+  //
+  // Parse postfix (arrays and functions)
+  //
+  while (TRUE) {
+    if (ParserExpect (Parser, TOK_LBRACKET)) {
+      //
+      // Array declarator
+      //
+      ParserAdvance (Parser);
+
+      AST_EXPR  *Size = NULL;
+      if (!ParserExpect (Parser, TOK_RBRACKET)) {
+        Size = ParseAssignmentExpression (Parser);
+      }
+
+      ParserConsume (Parser, TOK_RBRACKET);
+
+      AST_TYPE  *ArrayType = AstTypeCreate (AST_TYPE_ARRAY);
+      ArrayType->Array.ElementType = Type;
+      ArrayType->Array.Size = Size;
+      Type = ArrayType;
+    } else if (ParserExpect (Parser, TOK_LPAREN)) {
+      //
+      // Function declarator
+      //
+      ParserAdvance (Parser);
+
+      AST_TYPE  *FuncType = AstTypeCreate (AST_TYPE_FUNCTION);
+      FuncType->Function.ReturnType = Type;
+      FuncType->Function.Parameters = NULL;
+      FuncType->Function.ParameterCount = 0;
+      FuncType->Function.IsVariadic = FALSE;
+
+      //
+      // Parse parameters
+      //
+      if (!ParserExpect (Parser, TOK_RPAREN)) {
+        // TODO: Parse parameter list
+        // For now, skip to closing paren
+        while (!ParserExpect (Parser, TOK_RPAREN) && !ParserExpect (Parser, TOK_EOF)) {
+          ParserAdvance (Parser);
+        }
+      }
+
+      ParserConsume (Parser, TOK_RPAREN);
+      Type = FuncType;
+    } else {
+      break;
+    }
+  }
+
+  return Type;
+}
+
+/**
   Parse a declaration.
 
   @param[in,out]  Parser        Parser state.
@@ -754,9 +1309,139 @@ ParserParseDeclaration (
   IN OUT PARSER_STATE  *Parser
   )
 {
-  // TODO: Implement declaration parsing
-  ParserError (Parser, "Declaration parsing not yet implemented");
-  return NULL;
+  TOKEN_LOCATION  Loc = Parser->CurrentToken->Location;
+
+  //
+  // Parse storage class specifiers
+  //
+  BOOLEAN  IsStatic = FALSE;
+  BOOLEAN  IsExtern = FALSE;
+  BOOLEAN  IsTypedef = FALSE;
+  BOOLEAN  IsAuto = FALSE;
+  BOOLEAN  IsRegister = FALSE;
+
+  while (IsStorageClassSpecifier (Parser->CurrentToken->Type)) {
+    switch (Parser->CurrentToken->Type) {
+      case TOK_STATIC:
+        IsStatic = TRUE;
+        break;
+      case TOK_EXTERN:
+        IsExtern = TRUE;
+        break;
+      case TOK_TYPEDEF:
+        IsTypedef = TRUE;
+        break;
+      case TOK_AUTO:
+        IsAuto = TRUE;
+        break;
+      case TOK_REGISTER:
+        IsRegister = TRUE;
+        break;
+      default:
+        break;
+    }
+    ParserAdvance (Parser);
+  }
+
+  //
+  // Parse type qualifiers
+  //
+  BOOLEAN  IsConst, IsVolatile, IsRestrict, IsAtomic;
+  ParseTypeQualifiers (Parser, &IsConst, &IsVolatile, &IsRestrict, &IsAtomic);
+
+  //
+  // Parse type specifiers
+  //
+  AST_TYPE  *BaseType = ParseTypeSpecifiers (Parser);
+  if (BaseType == NULL) {
+    ParserError (Parser, "Expected type specifier");
+    return NULL;
+  }
+
+  //
+  // Apply qualifiers to type
+  //
+  if (IsConst || IsVolatile || IsRestrict || IsAtomic) {
+    AST_TYPE  *QualType = AstTypeCreate (AST_TYPE_QUALIFIED);
+    QualType->Qualified.BaseType = BaseType;
+    QualType->Qualified.IsConst = IsConst;
+    QualType->Qualified.IsVolatile = IsVolatile;
+    QualType->Qualified.IsRestrict = IsRestrict;
+    QualType->Qualified.IsAtomic = IsAtomic;
+    BaseType = QualType;
+  }
+
+  //
+  // Parse declarator
+  //
+  CHAR8     *Name = NULL;
+  AST_TYPE  *Type = ParseDeclarator (Parser, BaseType, &Name);
+
+  //
+  // Determine storage class
+  //
+  STORAGE_CLASS  StorageClass = STORAGE_NONE;
+  if (IsTypedef) {
+    StorageClass = STORAGE_TYPEDEF;
+  } else if (IsStatic) {
+    StorageClass = STORAGE_STATIC;
+  } else if (IsExtern) {
+    StorageClass = STORAGE_EXTERN;
+  } else if (IsRegister) {
+    StorageClass = STORAGE_REGISTER;
+  } else if (IsAuto) {
+    StorageClass = STORAGE_AUTO;
+  }
+
+  //
+  // Create declaration node
+  //
+  AST_DECL  *Decl = NULL;
+
+  if (Type->Kind == AST_TYPE_FUNCTION) {
+    //
+    // Function declaration
+    //
+    Decl = AstDeclCreate (AST_DECL_FUNCTION, &Loc, Name);
+    Decl->Type = Type;
+    Decl->StorageClass = StorageClass;
+    Decl->Function.Parameters = Type->Function.Parameters;
+    Decl->Function.ParameterCount = Type->Function.ParameterCount;
+    Decl->Function.IsVariadic = Type->Function.IsVariadic;
+    Decl->Function.Body = NULL;
+    Decl->Function.IsInline = FALSE;
+
+    //
+    // Check for function body
+    //
+    if (ParserExpect (Parser, TOK_LBRACE)) {
+      Decl->Function.Body = ParserParseStatement (Parser);
+      Decl->Function.IsDefinition = TRUE;
+    } else {
+      ParserConsume (Parser, TOK_SEMICOLON);
+      Decl->Function.IsDefinition = FALSE;
+    }
+  } else {
+    //
+    // Variable declaration
+    //
+    Decl = AstDeclCreate (AST_DECL_VAR, &Loc, Name);
+    Decl->Type = Type;
+    Decl->StorageClass = StorageClass;
+    Decl->Var.Initializer = NULL;
+
+    //
+    // Check for initializer
+    //
+    if (ParserExpect (Parser, TOK_EQUAL)) {
+      ParserAdvance (Parser);
+      Decl->Var.Initializer = ParseAssignmentExpression (Parser);
+    }
+
+    ParserConsume (Parser, TOK_SEMICOLON);
+  }
+
+  return Decl;
 }
 
 /**
@@ -772,24 +1457,7 @@ ParserParseType (
   IN OUT PARSER_STATE  *Parser
   )
 {
-  TOKEN  *Tok = Parser->CurrentToken;
-
-  //
-  // Basic types
-  //
-  if (Tok->Type == TOK_INT) {
-    ParserAdvance (Parser);
-    return AstTypeCreate (AST_TYPE_INT);
-  }
-
-  if (Tok->Type == TOK_VOID) {
-    ParserAdvance (Parser);
-    return AstTypeCreate (AST_TYPE_VOID);
-  }
-
-  // TODO: Implement full type parsing
-
-  return NULL;
+  return ParseTypeSpecifiers (Parser);
 }
 
 /**
