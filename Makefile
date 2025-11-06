@@ -90,6 +90,8 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)/pcie
 	mkdir -p $(BUILD_DIR)/loader
 	mkdir -p $(BUILD_DIR)/tools
+	mkdir -p $(BUILD_DIR)/debug
+	mkdir -p $(BUILD_DIR)/compiler
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
