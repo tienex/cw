@@ -1,0 +1,979 @@
+# MMIX Complete Reference Guide
+
+**Version**: 1.0
+**Last Updated**: 2025-11-06
+**Copyright**: MMIX Emulator Project. All rights reserved.
+**License**: BSD-2-Clause-Patent
+
+---
+
+## Table of Contents
+
+### Part I: System Architecture
+1. [Register Architecture](#register-architecture)
+   - General Purpose Registers
+   - Floating-Point Registers
+   - Vector Registers (SVE)
+   - Predicate Registers
+   - Matrix Tile Registers (SME)
+   - Special Registers
+2. [MMIX Application Binary Interface (ABI)](#mmix-abi)
+   - Calling Convention
+   - Register Allocation
+   - Stack Frame Layout
+   - Function Prologue/Epilogue
+   - Register Stack Mechanism
+3. [Memory Architecture](#memory-architecture)
+   - Address Space
+   - Memory Regions
+   - Virtual Memory
+4. [Instruction Formats](#instruction-formats)
+5. [ISA Extensions](#isa-extensions)
+6. [Performance Characteristics](#performance-characteristics)
+7. [Architectural Changes Log](#architectural-changes-log)
+
+### Part II: Virtual Memory Implementations
+8. [Virtual Memory Overview](#virtual-memory-overview)
+9. [TLB-Only Mode](#tlb-only-mode)
+10. [Hardware Page Tables (IHPT)](#hardware-page-tables-ihpt)
+11. [Nested Virtualization (IVHPT)](#nested-virtualization-ivhpt)
+12. [VM Comparison and Use Cases](#vm-comparison-and-use-cases)
+
+### Part III: C23 Compiler Design
+13. [Compiler Overview](#compiler-overview)
+14. [Compiler Architecture](#compiler-architecture)
+15. [C23 Standard Features](#c23-standard-features)
+16. [GNU Extensions](#gnu-extensions)
+17. [MSVC Extensions](#msvc-extensions)
+18. [Clang Extensions](#clang-extensions)
+19. [Optimization Features](#optimization-features)
+20. [Code Generation](#code-generation)
+21. [Debug Information](#debug-information)
+
+### Part IV: MetaWare High C Extensions
+22. [MetaWare Extensions Overview](#metaware-extensions-overview)
+23. [MetaWare Core Extensions](#metaware-core-extensions)
+24. [Historical Significance](#historical-significance)
+
+---
+
+# Part I: System Architecture
+
+## Register Architecture
+
+### General Purpose Registers (GPRs)
+- **Count**: 256 registers ($0-$255)
+- **Width**: 64-bit
+- **Usage**: General computation, addressing, and data manipulation
+
+### Floating-Point Registers
+- **Count**: 256 registers (F0-F255)
+- **Width**: 64-bit (double precision) or 32-bit (single precision)
+- **Format**: IEEE 754 binary floating-point
+- **Notes**: Increased from 32 to 256 to match GPR count (architectural change 2025-11-06)
+
+### Vector Registers (SVE Extension)
+- **Count**: 256 registers (V0-V255)
+- **Width**: Variable length (128-bit to 2048-bit)
+- **Format**: Scalable vector extension compatible
+- **Notes**: Increased from 32 to 256 to match GPR count (architectural change 2025-11-06)
+
+### Predicate Registers (SVE Extension)
+- **Count**: 16 registers (P0-P15)
+- **Width**: Variable (one bit per vector element)
+- **Usage**: Vector element masking and conditionals
+
+### Matrix Tile Registers (SME Extension)
+- **Count**: 8 tiles (ZA0-ZA7)
+- **Width**: Variable square matrices
+- **Usage**: Matrix operations for ML/AI workloads
+
+### Special Registers
+- **Count**: 32 standard + 32 extended = 64 total
+- **Width**: 64-bit
+- **Notable registers**:
+  - rA (arithmetic status)
+  - rB (bootstrap)
+  - rG (global threshold)
+  - rL (local threshold)
+  - rO (register stack offset)
+  - rS (register stack pointer)
+  - rJ (return jump address)
+  - rR (remainder from division)
+
+## MMIX ABI
+
+Based on GCC's MMIX implementation and MMIXware conventions.
+
+### Calling Convention (GNU ABI)
+
+#### Argument Passing
+- **Argument registers**: Start at $231 (rGO)
+- **First 16 arguments**: Passed in consecutive registers starting at $231
+- **Additional arguments**: Passed on stack
+- **Complex types**: Passed by reference in MMIX_STRUCT_VALUE_REGNUM ($251)
+- **Variadic functions**: All arguments passed on stack
+
+#### Return Values
+- **Integer/pointer returns**: Register $231
+- **Floating-point returns**: Register F231
+- **Large structures**: Passed by reference through $251
+
+#### Register Allocation
+```
+$0-$14     : Callee-saved (preserved across calls)
+$15        : Register stack hole (reserved)
+$16-$31    : Argument passing for MMIXware ABI
+$32-$230   : Caller-saved (scratch registers)
+$231-$246  : Argument passing for GNU ABI
+$247-$250  : Caller-saved
+$251       : Structure value pointer
+$252       : Static chain (nested functions)
+$253       : Frame pointer (FP)
+$254       : Stack pointer (SP) - fixed
+$255       : Return register / temporary
+```
+
+### Stack Frame Layout
+
+```
+High Address
++------------------+
+| Outgoing args    |  (for called functions)
++------------------+
+| Saved registers  |  ($0-$14 if modified)
++------------------+
+| Local variables  |
++------------------+  <-- Frame Pointer ($253)
+| Return address   |  (saved rJ)
++------------------+
+| Previous FP      |
++------------------+  <-- Stack Pointer ($254)
+Low Address
+```
+
+### Function Prologue/Epilogue
+
+**Prologue** (generated by compiler):
+```mmix
+PUSHJ $255,0          ; Save return address to rJ, allocate register frame
+; Save callee-saved registers if needed
+; Allocate stack space for locals
+```
+
+**Epilogue**:
+```mmix
+; Restore callee-saved registers if needed
+POP 0,0               ; Restore register frame and return
+```
+
+### Register Stack Mechanism
+
+MMIX uses a unique register stack mechanism:
+- Local registers: $0 to $rL-1
+- Parameter registers: $rL to $rG-1
+- Global registers: $rG to $255
+- PUSHJ saves local registers to memory (register stack)
+- POP restores local registers from memory
+
+## Memory Architecture
+
+### Address Space
+- **Size**: 64-bit (theoretical 16 EiB)
+- **Byte order**: Big-endian (configurable to little-endian)
+- **Page size**: 4 KiB, 2 MiB, or 1 GiB (configurable)
+
+### Memory Regions
+- **Text**: Code segment (.text)
+- **Data**: Initialized data (.data)
+- **BSS**: Uninitialized data (.bss)
+- **Heap**: Dynamic allocation (grows upward)
+- **Stack**: Call frames (grows downward from high memory)
+
+### Virtual Memory
+- **TLB**: Translation Lookaside Buffer
+- **Page tables**: Multi-level hierarchical
+- **Privileges**: User mode, supervisor mode, hypervisor mode
+
+## Instruction Formats
+
+### Standard Instructions (32-bit)
+```
+Opcode (8 bits) | X (8 bits) | Y (8 bits) | Z (8 bits)
+```
+
+### Compressed Instructions (16-bit)
+```
+Opcode (4 bits) | Operands (12 bits)
+```
+
+### SIMD/Vector Instructions
+```
+Opcode (8 bits) | Extension (4 bits) | Operands (20 bits)
+```
+
+## ISA Extensions
+
+### Base MMIX
+- Integer arithmetic and logic
+- Memory access (load/store)
+- Control flow (branch, jump, call)
+- Floating-point (IEEE 754)
+
+### Compressed Extension (C)
+- 16-bit instruction encoding
+- Reduced code size
+- Common operations
+
+### Vector Extension (SVE)
+- Scalable vector length
+- Predicated operations
+- Gather/scatter
+- Element-wise operations
+
+### Matrix Extension (SME)
+- Matrix multiply-accumulate
+- Tile-based operations
+- ML/AI acceleration
+
+### Machine Learning Extension (ML)
+- Neural network operations
+- Tensor operations
+- Quantization support
+- Activation functions (ReLU, sigmoid, tanh)
+
+### Hypervisor Extension (H)
+- Virtual machine support
+- Stage-2 address translation
+- Trap and emulate
+- Virtual interrupt injection
+
+## Performance Characteristics
+
+### Register File
+- **Access latency**: 1 cycle (L0 cache)
+- **Bandwidth**: 8 reads + 4 writes per cycle (theoretical)
+
+### Memory Hierarchy
+- **L1 Data Cache**: 32 KiB, 4-way set associative
+- **L1 Instruction Cache**: 32 KiB, 4-way set associative
+- **L2 Unified Cache**: 256 KiB, 8-way set associative
+- **L3 Unified Cache**: 8 MiB, 16-way set associative
+- **Main Memory**: Variable latency
+
+### Instruction Throughput
+- **Integer ALU**: 4 ops/cycle (dual-issue)
+- **FPU**: 2 ops/cycle (pipelined)
+- **Memory**: 2 loads + 1 store per cycle
+- **Branch**: 1 per cycle (predicted)
+
+## Architectural Changes Log
+
+### 2025-11-06: Register Count Unification
+
+**Rationale**: To provide architectural symmetry and simplify compiler code generation, floating-point and vector registers were increased to match the general-purpose register count.
+
+**Changes**:
+- Floating-point registers: 32 → 256
+- Vector registers: 32 → 256
+
+**Impact**:
+- More registers available for complex FP/SIMD computations
+- Better register allocation for numerical and ML workloads
+- Increased CPU state size (memory footprint)
+- Simplified compiler backend (uniform register counts)
+
+**Files Modified**:
+- `include/MmixTypes.h`: Added MMIX_FLOATING_REGISTER_COUNT (256), changed MMIX_VECTOR_REGISTER_COUNT to 256
+- `include/MmixCore.h`: Updated FpRegisters and VectorRegisters array sizes and comments
+
+---
+
+# Part II: Virtual Memory Implementations
+
+## Virtual Memory Overview
+
+MMIX supports three virtual memory implementation variants, each with different hardware complexity and performance characteristics.
+
+## TLB-Only Mode
+
+### Description
+The simplest implementation uses only Translation Lookaside Buffers (TLBs) without hardware page table walking. All page table operations are performed in software by the OS.
+
+**Architecture Model**: Based on **MIPS R3000/R4000 TLB design**, where all TLB misses trap to software and the OS manages page table walking.
+
+### Characteristics
+- **Hardware**: TLB entries only (16-256 entries typical)
+- **Page Table Format**: OS-defined (flexible)
+- **TLB Miss Handling**: Software trap to OS
+- **Performance**: Higher miss penalty, lower hardware complexity
+- **Power**: Lower static power (less hardware)
+
+### TLB Miss Flow
+1. Virtual address translation fails in TLB
+2. CPU raises TLB miss exception
+3. OS exception handler:
+   - Walks page tables in memory
+   - Finds physical address
+   - Loads entry into TLB (TLBWR instruction)
+   - Returns from exception
+4. Instruction retries and succeeds
+
+### Advantages
+- Simple hardware
+- Flexible page table formats
+- Lower die area and power
+- Easier to verify
+
+### Disadvantages
+- High TLB miss penalty (50-100+ cycles)
+- OS overhead on every miss
+- Not suitable for large working sets
+
+## Hardware Page Tables (IHPT)
+
+### Description
+Hardware page table walker (PTW) that automatically walks page tables on TLB miss.
+
+**Architecture Model**: Based on **PowerPC Inverted Hash Page Table (IHPT)** and **x86-64 page table walker** designs. Hardware automatically walks hierarchical page tables on TLB miss, reducing software overhead.
+
+### Characteristics
+- **Hardware**: TLB + PTW state machine
+- **Page Table Format**: Fixed hierarchical (4-level)
+- **TLB Miss Handling**: Hardware automatic
+- **Performance**: Lower miss penalty (10-30 cycles)
+- **Power**: Moderate (PTW logic active on misses)
+
+### Page Table Format
+```
+Level 4 (PML4): 512 entries, covers 256 TiB
+Level 3 (PDPT): 512 entries, covers 512 GiB
+Level 2 (PD):   512 entries, covers 1 GiB
+Level 1 (PT):   512 entries, covers 2 MiB
+
+Each entry: 64 bits
+  [63]    : Execute disable
+  [62:52] : Available
+  [51:12] : Physical address bits
+  [11:9]  : Available
+  [8]     : Global
+  [7]     : Page size (1=large)
+  [6]     : Dirty
+  [5]     : Accessed
+  [4]     : Cache disable
+  [3]     : Write through
+  [2]     : User/supervisor
+  [1]     : Read/write
+  [0]     : Present
+```
+
+### TLB Miss Flow
+1. Virtual address translation fails in TLB
+2. Hardware PTW activates:
+   - Load PML4 entry from PageTableBase
+   - Check present bit, permissions
+   - Load PDPT entry
+   - Load PD entry
+   - Load PT entry
+   - Check all permission bits cumulative
+3. If successful:
+   - Load TLB with translation
+   - Retry instruction
+4. If fault:
+   - Raise page fault exception
+   - OS handles fault
+
+### Advantages
+- Low TLB miss penalty
+- Transparent to software
+- Well-understood design (Intel/AMD compatible)
+- Good for general-purpose workloads
+
+### Disadvantages
+- Fixed page table format
+- Higher hardware cost
+- PTW cache adds complexity
+- Power consumption on walks
+
+## Nested Virtualization (IVHPT)
+
+### Description
+Two-level address translation for hypervisors. Guest virtual → Guest physical (gVA→gPA) and Guest physical → Host physical (gPA→hPA).
+
+**Architecture Model**: Based on **Intel Itanium (IA-64) IVHPT (Itanium VHPT)**, **Intel VT-x EPT (Extended Page Tables)**, and **AMD NPT (Nested Page Tables)**. Provides hardware-assisted nested page table walking for virtualization.
+
+### Characteristics
+- **Hardware**: TLB + dual PTW + combined TLB
+- **Page Tables**: Two independent hierarchies
+- **TLB Miss Handling**: Nested hardware walk
+- **Performance**: Higher latency (20-60 cycles)
+- **Power**: Highest (two PTWs potentially active)
+
+### Nested TLB Miss Flow
+1. gVA lookup in combined TLB fails
+2. Guest PTW begins:
+   - Translate gPML4_base through host tables → hPML4_base
+   - Load gPML4 entry from memory
+   - Translate gPDPT_base through host tables → hPDPT_base
+   - Load gPDPT entry
+   - Translate gPD_base through host tables → hPD_base
+   - Load gPD entry
+   - Translate gPT_base through host tables → hPT_base
+   - Load gPT entry (gives gPA)
+3. Host PTW for final gPA→hPA:
+   - Walk host tables with gPA
+   - Get final hPA
+4. Load combined TLB with gVA→hPA + permissions
+5. Retry instruction
+
+### Worst Case
+24 memory accesses for full nested walk:
+- 4 guest table levels × (1 entry load + 1 host translation walk)
+- Each host translation: up to 4 accesses
+- = 4 × (1 + 4) = 20 accesses minimum
+- Plus final gPA translation: +4
+- **Total: 24 memory accesses!**
+
+### Advantages
+- Full virtualization support
+- Nested guests possible
+- Isolation guaranteed by hardware
+- Intel EPT/AMD NPT compatible
+
+### Disadvantages
+- High complexity
+- Worst-case latency very high
+- Significant power consumption
+- Large die area for PTW logic
+
+## VM Comparison and Use Cases
+
+### Comparison Table
+
+| Feature              | TLB-Only | IHPT (EPT) | IVHPT (Nested) |
+|---------------------|----------|------------|----------------|
+| Hardware Cost       | Low      | Medium     | High           |
+| TLB Miss Latency    | 50-100c  | 10-30c     | 20-60c         |
+| Worst Case Latency  | ~100c    | ~30c       | ~200c          |
+| Power (Active)      | Low      | Medium     | High           |
+| Power (Idle)        | Lowest   | Low        | Medium         |
+| Die Area            | ~5K gates| ~50K gates | ~150K gates    |
+| Virtualization      | Software | Software   | Hardware       |
+| Flexibility         | High     | Low        | Low            |
+| OS Complexity       | High     | Low        | Low            |
+
+### Use Cases
+
+**TLB-Only**:
+- Embedded systems
+- Real-time systems with predictable timing
+- Systems with small working sets
+- Custom OS with specialized page table formats
+
+**IHPT**:
+- General-purpose operating systems
+- Desktop/server workloads
+- Large memory workloads
+- Linux, Windows, BSD
+
+**IVHPT**:
+- Cloud computing platforms
+- Hypervisors (KVM, Xen, VMware)
+- Container isolation
+- Trusted execution environments
+
+---
+
+# Part III: C23 Compiler Design
+
+## Compiler Overview
+
+This section describes the design of the MMIX C23 compiler (`mmix-cc`) with comprehensive support for GNU, MSVC, and Clang language extensions.
+
+## Compiler Architecture
+
+```
+Source Code (.c)
+    ↓
+[Preprocessor] → Macros, includes, conditional compilation
+    ↓
+[Lexer] → Tokens
+    ↓
+[Parser] → Abstract Syntax Tree (AST)
+    ↓
+[Semantic Analyzer] → Type checking, symbol resolution
+    ↓
+[IR Generator] → Intermediate Representation
+    ↓
+[Optimizer] → SSA form, constant folding, dead code elimination
+    ↓
+[Code Generator] → MMIX assembly
+    ↓
+[Assembler] → Object file with debug info
+```
+
+## C23 Standard Features
+
+### Core Language
+- `_Generic` selections
+- `_Static_assert`
+- `_Alignas` and `_Alignof`
+- `_Noreturn`
+- `_Thread_local`
+- `typeof` and `typeof_unqual`
+- `constexpr`
+- `nullptr`
+- `_BitInt(N)` arbitrary-width integers
+- `[[attributes]]` standard attributes
+- Binary literals (`0b` prefix)
+- Digit separators (`1'000'000`)
+- `auto` type inference (C23)
+- Labels at end of compound statements
+- Empty initializer lists
+
+### Preprocessor
+- `__VA_OPT__` for variadic macros
+- `#elifdef` and `#elifndef`
+- `#embed` for binary resources
+- `#warning` directive
+- `__has_include` and `__has_c_attribute`
+
+### Library Features
+- `<stdckdint.h>` - Checked integer arithmetic
+- `<stdbit.h>` - Bit manipulation
+- `<stdatomic.h>` enhancements
+- `<threads.h>` improvements
+
+## GNU Extensions
+
+### Statement Expressions
+```c
+int x = ({ int y = foo(); y + 1; });
+```
+
+### typeof Operator
+```c
+typeof(x) y = x;
+__typeof__(expr) var;
+```
+
+### Case Ranges
+```c
+case 'A' ... 'Z':
+```
+
+### Labels as Values
+```c
+void *ptr = &&label;
+goto *ptr;
+```
+
+### Nested Functions
+```c
+void outer() {
+    void inner() { }
+    inner();
+}
+```
+
+### Key Attributes
+- `__attribute__((aligned(N)))`
+- `__attribute__((packed))`
+- `__attribute__((constructor))` / `__attribute__((destructor))`
+- `__attribute__((format(printf, 1, 2)))`
+- `__attribute__((noreturn))`
+- `__attribute__((always_inline))` / `__attribute__((noinline))`
+- `__attribute__((visibility("default|hidden")))`
+
+### Built-in Functions
+- `__builtin_expect(expr, expected)`
+- `__builtin_unreachable()`
+- `__builtin_prefetch(addr, rw, locality)`
+- `__builtin_constant_p(expr)`
+- `__builtin_clz(x)` - Count leading zeros
+- `__builtin_popcount(x)` - Population count
+- `__builtin_bswap32/64(x)` - Byte swap
+
+## MSVC Extensions
+
+### Calling Conventions
+- `__cdecl` - C calling convention
+- `__stdcall` - Standard call
+- `__fastcall` - Fast call
+- `__vectorcall` - Vector calling convention
+
+### Storage Class Modifiers
+- `__declspec(align(N))` - Alignment
+- `__declspec(dllimport)` / `__declspec(dllexport)` - DLL linkage
+- `__declspec(naked)` - Naked function
+- `__declspec(noinline)` - No inlining
+- `__declspec(thread)` - Thread-local storage
+
+### Intrinsics
+- `__assume(expr)` - Optimization hint
+- `__debugbreak()` - Debug breakpoint
+- `_byteswap_ushort/ulong/uint64` - Byte swap
+- `_BitScanForward/_BitScanReverse` - Bit scan
+- `__cpuid` - CPU ID
+- `__rdtsc` - Read time-stamp counter
+
+### Structured Exception Handling (SEH)
+```c
+__try {
+    // Protected code
+}
+__except (filter_expression) {
+    // Exception handler
+}
+__finally {
+    // Cleanup code
+}
+```
+
+## Clang Extensions
+
+### Blocks (Apple Extension)
+```c
+int (^block)(int) = ^(int x) { return x * 2; };
+```
+
+### Attributes
+- `__attribute__((availability(...)))` - Platform availability
+- `__attribute__((enable_if(...)))` - Conditional availability
+- `__attribute__((no_sanitize("...")))` - Sanitizer control
+
+### Built-ins
+- `__builtin_assume(expr)` - Optimization hint
+- `__builtin_shufflevector()` - Vector shuffle
+- `__builtin_add_overflow(a, b, &result)` - Overflow checking
+- `__has_feature(x)` - Feature test
+- `__has_builtin(__builtin_xxx)` - Built-in test
+
+## Optimization Features
+
+### Optimization Levels
+- `-O0` - No optimization (default)
+- `-O1` - Basic optimization
+- `-O2` - Full optimization
+- `-O3` - Aggressive optimization
+- `-Os` - Size optimization
+- `-Ofast` - Unsafe optimizations
+
+### Optimization Passes
+1. **SSA Construction** - Convert to Static Single Assignment
+2. **Constant Folding** - Evaluate constants at compile time
+3. **Dead Code Elimination** - Remove unreachable code
+4. **Common Subexpression Elimination** - Eliminate redundant computations
+5. **Loop Invariant Code Motion** - Move loop-invariant code outside loops
+6. **Inline Expansion** - Inline small functions
+7. **Tail Call Optimization** - Convert tail calls to jumps
+8. **Register Allocation** - Graph coloring algorithm
+9. **Instruction Scheduling** - Reorder for better pipeline usage
+10. **Peephole Optimization** - Local instruction optimization
+
+### MMIX-Specific Optimizations
+- Use of 256 registers
+- Compressed instruction selection
+- Vector instruction utilization
+- Matrix operation fusion
+- Branch prediction hints
+- Cache prefetch generation
+
+## Code Generation
+
+### Register Allocation
+- 256 general-purpose registers
+- Local/global register distinction
+- Register windows for function calls
+- Spilling to memory when needed
+
+### Calling Convention
+- Arguments in $231-$246 (GNU ABI)
+- Return value in $231
+- Callee-saved registers $0-$14
+- Stack frame layout
+- Structure return through $251
+
+## Debug Information
+
+### CodeView (MSVC Compatible)
+- Symbol information
+- Type information
+- Line number information
+- Source file information
+- Local variable information
+
+### DWARF (GCC/Clang Compatible)
+- `.debug_info` - Debug information
+- `.debug_line` - Line number information
+- `.debug_frame` - Stack frame information
+- `.debug_abbrev` - Abbreviation tables
+- `.debug_str` - String table
+
+---
+
+# Part IV: MetaWare High C Extensions
+
+## MetaWare Extensions Overview
+
+MetaWare High C was a highly advanced C compiler for the FM Towns platform (1989) and other systems. It introduced many innovative language extensions, some of which predated their standardization by decades.
+
+## MetaWare Core Extensions
+
+### 1. Named Arguments (1987)
+
+MetaWare High C supported named function arguments decades before modern languages:
+
+```c
+// Function declaration
+int create_window(int x, int y, int width, int height, const char *title);
+
+// Named arguments call (any order!)
+int win2 = create_window(
+    .title = "My Window",
+    .width = 640,
+    .height = 480,
+    .x = 10,
+    .y = 20
+);
+```
+
+**Features:**
+- Arguments can be specified in any order using `.name = value` syntax
+- Can mix positional and named arguments
+- Predates Python's keyword arguments (1991) by 4 years
+- Predates C#'s named parameters (2010) by 23 years
+
+### 2. Generator Coroutines (1989)
+
+Python-style generator functions with `yield`, implemented in 1989:
+
+```c
+// Generator function declaration
+void fibonacci(void) -> (int value) {
+    int a = 0, b = 1;
+
+    while (1) {
+        yield(a);  // Yield current value and suspend
+        int temp = a + b;
+        a = b;
+        b = temp;
+    }
+}
+```
+
+**Features:**
+- State preservation between calls
+- Multiple yield points
+- Automatic state management
+- Predates Python generators by 12 years
+
+### 3. Numeric Literal Separators (1989)
+
+Decades before C++14 added this feature:
+
+```c
+// Binary literals with separators
+int binary = 0b1111_0000_1010_0101;
+
+// Decimal literals with separators
+long big_number = 1_234_567_890;
+
+// Hexadecimal literals with separators
+unsigned int addr = 0xDEAD_BEEF;
+```
+
+Predates C++14 by 25 years!
+
+### 4. Nested Functions with Up-Level References
+
+Full Pascal-style nested functions:
+
+```c
+int outer_function(int x) {
+    int local_var = 100;
+
+    // Nested function can access outer_function's variables
+    int inner_function(int y) {
+        return x + y + local_var;  // Up-level reference
+    }
+
+    return process_values(inner_function, x);
+}
+```
+
+### 5. Non-Local Exits from Nested Functions
+
+Nested functions can `goto` labels in their parent functions:
+
+```c
+int search_with_early_exit(int *array, int size) {
+    found:
+    return current_index;
+
+    int search_helper(int start, int end) {
+        for (int i = start; i < end; i++) {
+            if (array[i] == target) {
+                current_index = i;
+                goto found;  // Jump back to parent function!
+            }
+        }
+        return -1;
+    }
+
+    int current_index = 0;
+    int target = 42;
+    return search_helper(0, size);
+}
+```
+
+### 6. Built-in Functions
+
+MetaWare-specific built-ins:
+
+```c
+// Absolute value (compile-time optimized)
+int __abs(int x);
+
+// Min/max (type-generic)
+typeof(a) __min(a, b);
+typeof(a) __max(a, b);
+
+// Bit manipulation
+int __bit_count(unsigned int x);     // Population count
+int __leading_zeros(unsigned int x);  // Count leading zeros
+int __trailing_zeros(unsigned int x); // Count trailing zeros
+
+// Rotate operations
+unsigned int __rotate_left(unsigned int x, int count);
+unsigned int __rotate_right(unsigned int x, int count);
+
+// Atomic operations (for multithreading)
+int __atomic_add(int *ptr, int value);
+int __atomic_swap(int *ptr, int value);
+int __compare_and_swap(int *ptr, int old_val, int new_val);
+```
+
+### 7. Advanced Calling Conventions
+
+```c
+// Standard C calling convention
+int __cdecl standard_func(int a, int b);
+
+// Pascal calling convention (reverse order)
+int __pascal pascal_func(int a, int b);
+
+// Fast calling convention (registers)
+int __fastcall fast_func(int a, int b);
+
+// System calling convention (OS-specific)
+int __syscall system_func(int a, int b);
+
+// Fortran calling convention
+int __fortran fortran_func(int a, int b);
+```
+
+### 8. Extended Type Qualifiers
+
+```c
+// Interrupt function
+void __interrupt timer_handler(void) {
+    // Saves all registers
+    // Can handle hardware interrupts
+}
+
+// Reentrant functions
+void __reentrant thread_safe_function(void) {
+    // Guaranteed thread-safe
+}
+
+// Task functions (for RTOS)
+void __task background_task(void) {
+    while (1) {
+        // Task code
+    }
+}
+```
+
+## Historical Significance
+
+These extensions were groundbreaking for their time:
+
+- **Named Arguments** (1987) predated Python keyword args by 4 years and C# by 23 years
+- **Generators** (1989) predated Python generators by 12 years
+- **Numeric separators** (1989) predated C++14 by 25 years
+- **Nested functions** still not in standard C/C++
+- **Inline assembly** with named constraints influenced GCC extended asm
+- **Raw string literals** (r"...") predated C++11 by 22 years
+
+Many of these features demonstrate that advanced PL research concepts (closures, coroutines, keyword arguments, etc.) were being productively used in commercial systems programming long before they became mainstream. MetaWare High C was remarkably ahead of its time.
+
+---
+
+## Appendix A: Command-Line Interface
+
+```bash
+mmix-cc [options] file...
+
+Options:
+  -c              Compile only, don't link
+  -o <file>       Output file name
+  -O[0-3sz]       Optimization level
+  -g              Generate debug information
+  -std=c23        Language standard
+  -Wall           Enable all warnings
+  -Werror         Treat warnings as errors
+  -D<macro>       Define macro
+  -I<dir>         Include directory
+  -L<dir>         Library directory
+  -l<lib>         Link library
+  -fPIC           Position-independent code
+```
+
+## Appendix B: Implementation Files
+
+### Compiler
+```
+compiler/
+├── frontend/
+│   ├── lexer.c          - Tokenization
+│   ├── preprocessor.c   - Macro expansion
+│   ├── parser.c         - Syntax analysis
+│   └── sema.c           - Semantic analysis
+├── ir/
+│   ├── builder.c        - IR construction
+│   ├── types.c          - Type system
+│   └── optimize.c       - Optimization passes
+├── backend/
+│   ├── codegen.c        - MMIX code generation
+│   ├── regalloc.c       - Register allocation
+│   └── emit.c           - Assembly output
+├── debug/
+│   ├── codeview.c       - CodeView generation
+│   └── dwarf.c          - DWARF generation
+└── driver/
+    └── main.c           - Compiler driver
+```
+
+### Virtual Memory
+```
+memory/
+├── VmTlbOnly.c         - TLB-only implementation
+├── VmIhpt.c            - Hardware page table walker
+├── VmIvhpt.c           - Nested virtualization
+└── Memory.c            - Common memory operations
+```
+
+## Appendix C: References
+
+- MMIX: A RISC Computer for the New Millennium (Donald Knuth)
+- GCC MMIX Port Documentation
+- MetaWare High C Programmer's Guide (1985-1992)
+- FM Towns Developer Documentation
+- Intel 64 and IA-32 Architectures Software Developer's Manual
+- ARM Architecture Reference Manual (SVE/SME)
+- ISO/IEC 9899:2024 (C23 Standard)
+
+---
+
+**End of MMIX Complete Reference Guide**
