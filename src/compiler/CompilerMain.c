@@ -137,11 +137,14 @@ DumpTokens (
   printf ("\n=== Token Stream ===\n");
 
   while ((Tok = LexerNextToken (Lexer)) != NULL) {
-    printf ("%s:%u:%u: %s",
+    BOOLEAN  IsEof = (Tok->Type == TOK_EOF);
+
+    printf ("%s:%u:%u: %s (type=%d)",
             Tok->Location.FileName,
             Tok->Location.Line,
             Tok->Location.Column,
-            TokenTypeName (Tok->Type));
+            TokenTypeName (Tok->Type),
+            Tok->Type);
 
     if (Tok->Text != NULL && Tok->TextLength > 0) {
       printf (" '%.*s'", Tok->TextLength, Tok->Text);
@@ -151,7 +154,7 @@ DumpTokens (
 
     TokenDestroy (Tok);
 
-    if (Tok->Type == TOK_EOF) {
+    if (IsEof) {
       break;
     }
   }

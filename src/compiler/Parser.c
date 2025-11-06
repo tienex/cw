@@ -731,9 +731,20 @@ ParserParseStatement (
   }
 
   //
-  // Expression statement
+  // Expression statement or empty statement
   //
+  if (ParserExpect (Parser, TOK_SEMICOLON)) {
+    // Empty statement
+    ParserAdvance (Parser);
+    return AstStmtCreate (AST_STMT_NULL, &Tok->Location);
+  }
+
+  // Try to parse expression statement
   AST_EXPR  *Expr = ParserParseExpression (Parser);
+  if (Expr == NULL) {
+    return NULL;
+  }
+
   ParserConsume (Parser, TOK_SEMICOLON);
 
   AST_STMT  *Stmt = AstStmtCreate (AST_STMT_EXPR, &Tok->Location);
