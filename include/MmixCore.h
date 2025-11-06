@@ -203,6 +203,13 @@ struct _MMIX_CPU_STATE {
   BOOLEAN  FprAliasedToGpr;
 
   //
+  // MIX compatibility mode (for running legacy MIX programs)
+  // When TRUE: Emulates Donald Knuth's original MIX computer
+  // When FALSE: Native MMIX mode
+  //
+  BOOLEAN  MixCompatibilityMode;
+
+  //
   // Floating-point rounding mode
   //
   MMIX_ROUNDING_MODE  RoundingMode;

@@ -196,6 +196,59 @@ Created comprehensive ML helper library:
 - `MmixCpuGetPageTableBase()`: Get current ring's page table base
 - `MmixCpuConfigureRing()`: Configure ring settings (kernel only)
 
+### 6. Host Endianness Detection ✅
+**Implemented runtime host endianness detection for portable operation:**
+
+- **Automatic Detection**: Union-based test detects host byte order at runtime
+  - Works on both little-endian (x86, ARM) and big-endian (PowerPC, SPARC, s390x) hosts
+  - Ensures correct byte swapping regardless of host architecture
+
+- **Optimized Conversions**: Byte swapping only when necessary
+  - Host == Target endianness: No conversion (zero overhead)
+  - Host ≠ Target endianness: Efficient byte swap operations
+
+**Files Modified**:
+- `src/memory/Memory.c`: Added `MmixIsHostLittleEndian()` and `MmixSwapBytes()`
+- `docs/ARCHITECTURE.md`: Documented host endianness detection
+- `STATUS.md`: Updated endianness support status
+
+### 7. MIX Compatibility Mode ✅
+**Implemented compatibility layer for Donald Knuth's original MIX computer:**
+
+- **Register Mapping**: MIX registers mapped to MMIX GPRs
+  - A (accumulator) → $1
+  - X (extension) → $2
+  - I1-I6 (index) → $3-$8
+  - J (jump address) → $9
+  - Comparison indicator → $10
+  - Overflow toggle → $11
+
+- **Word Format**: Support for MIX 5-byte words (30 bits + sign)
+  - 6-bit bytes (0-63)
+  - Conversion to/from MMIX 64-bit format
+
+- **Memory Layout**: Word-addressable on byte-addressable memory
+  - 4000 MIX words mapped to MMIX memory
+  - Each MIX word occupies 8 bytes (aligned)
+
+**Files Added**:
+- `include/MmixMix.h`: MIX compatibility API (NEW)
+- `src/core/Mix.c`: MIX compatibility implementation (NEW)
+- `docs/MIX_COMPATIBILITY.md`: Complete MIX documentation (NEW)
+
+**Files Modified**:
+- `include/MmixCore.h`: Added `MixCompatibilityMode` flag
+- `src/core/Cpu.c`: Initialize MIX compatibility mode
+- `Makefile`: Added Mix.c to build
+
+**Functions Added**:
+- `MmixEnableMixMode()`: Enable MIX compatibility
+- `MmixDisableMixMode()`: Return to MMIX mode
+- `MmixReadMixRegister()`: Read MIX register
+- `MmixWriteMixRegister()`: Write MIX register with constraints
+- `MmixMixWordToUint64()`: Convert MIX word to 64-bit
+- `MmixUint64ToMixWord()`: Convert 64-bit to MIX word
+
 ---
 
 ## Architecture Specifications

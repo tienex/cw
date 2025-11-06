@@ -103,6 +103,12 @@ MmixCpuInitialize (
   Cpu->FprAliasedToGpr = FALSE;
 
   //
+  // MIX compatibility mode disabled by default (native MMIX mode)
+  // When enabled, emulates Donald Knuth's original MIX computer
+  //
+  Cpu->MixCompatibilityMode = FALSE;
+
+  //
   // Initialize general registers
   // Register $0 is always 0, others start undefined (0)
   //

@@ -42,6 +42,7 @@ EMULATOR_SOURCES = \
 	$(SRC_DIR)/core/Execute.c \
 	$(SRC_DIR)/core/Compressed.c \
 	$(SRC_DIR)/core/Kesu.c \
+	$(SRC_DIR)/core/Mix.c \
 	$(SRC_DIR)/memory/Memory.c \
 	$(SRC_DIR)/memory/PageTable.c \
 	$(SRC_DIR)/fpu/Fpu.c \

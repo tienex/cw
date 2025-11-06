@@ -8,7 +8,8 @@ This emulator implements:
 
 - **MMIX Core**: Full 64-bit RISC architecture with 256 general-purpose registers
 - **Memory Management**: Virtual memory with 4-level page tables and TLB
-- **Endian Switching**: Support for both big-endian and little-endian modes
+- **Endian Switching**: Support for both big-endian and little-endian modes with runtime host detection
+- **MIX Compatibility**: Run legacy MIX programs from "The Art of Computer Programming"
 - **Hypervisor**: MIPS VZ-style virtualization extensions
 - **Vector Extensions**: ARM SVE-style scalable vector operations
 - **Matrix Extensions**: ARM SME-style matrix operations
