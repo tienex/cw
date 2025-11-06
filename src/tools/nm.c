@@ -9,9 +9,6 @@
 **/
 
 #include "binformat/BinFormat.h"
-#include "binformat/LibAout.h"
-#include "binformat/LibOmf.h"
-#include "binformat/LibOrf.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
