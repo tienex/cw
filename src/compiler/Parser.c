@@ -546,21 +546,23 @@ ParseUnaryExpression (
   if (Tok->Type == TOK_AMPERSAND || Tok->Type == TOK_STAR ||
       Tok->Type == TOK_PLUS || Tok->Type == TOK_MINUS ||
       Tok->Type == TOK_TILDE || Tok->Type == TOK_EXCLAIM) {
+    TOKEN_TYPE      OpType = Tok->Type;  // Save operator type BEFORE advancing
+    TOKEN_LOCATION  OpLoc = Tok->Location;  // Save location BEFORE advancing
     ParserAdvance (Parser);
     AST_EXPR  *Operand = ParseUnaryExpression (Parser);
-    AST_EXPR  *Expr = AstExprCreate (AST_EXPR_UNARY, &Tok->Location);
+    AST_EXPR  *Expr = AstExprCreate (AST_EXPR_UNARY, &OpLoc);
 
-    if (Tok->Type == TOK_AMPERSAND) {
+    if (OpType == TOK_AMPERSAND) {
       Expr->Unary.Op = UN_OP_ADDRESS_OF;
-    } else if (Tok->Type == TOK_STAR) {
+    } else if (OpType == TOK_STAR) {
       Expr->Unary.Op = UN_OP_DEREF;
-    } else if (Tok->Type == TOK_PLUS) {
+    } else if (OpType == TOK_PLUS) {
       Expr->Unary.Op = UN_OP_PLUS;
-    } else if (Tok->Type == TOK_MINUS) {
+    } else if (OpType == TOK_MINUS) {
       Expr->Unary.Op = UN_OP_MINUS;
-    } else if (Tok->Type == TOK_TILDE) {
+    } else if (OpType == TOK_TILDE) {
       Expr->Unary.Op = UN_OP_BIT_NOT;
-    } else if (Tok->Type == TOK_EXCLAIM) {
+    } else if (OpType == TOK_EXCLAIM) {
       Expr->Unary.Op = UN_OP_LOGICAL_NOT;
     }
 
