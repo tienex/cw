@@ -297,8 +297,49 @@ ParsePrimaryExpression (
   // Integer literal
   //
   if (Tok->Type == TOK_INTEGER) {
-    AST_EXPR  *Expr = AstExprCreateInteger (&Tok->Location, 0, FALSE);
-    // TODO: Parse actual integer value from token text
+    INT64     Value;
+    BOOLEAN   IsUnsigned = FALSE;
+
+    //
+    // Parse integer value from token text
+    // Handle decimal, hex (0x), octal (0), and binary (0b)
+    //
+    if (Tok->TextLength > 2 && Tok->Text[0] == '0' &&
+        (Tok->Text[1] == 'x' || Tok->Text[1] == 'X')) {
+      //
+      // Hexadecimal
+      //
+      Value = strtoll (Tok->Text + 2, NULL, 16);
+    } else if (Tok->TextLength > 2 && Tok->Text[0] == '0' &&
+               (Tok->Text[1] == 'b' || Tok->Text[1] == 'B')) {
+      //
+      // Binary
+      //
+      Value = strtoll (Tok->Text + 2, NULL, 2);
+    } else if (Tok->TextLength > 1 && Tok->Text[0] == '0' &&
+               Tok->Text[1] >= '0' && Tok->Text[1] <= '7') {
+      //
+      // Octal
+      //
+      Value = strtoll (Tok->Text, NULL, 8);
+    } else {
+      //
+      // Decimal
+      //
+      Value = strtoll (Tok->Text, NULL, 10);
+    }
+
+    //
+    // Check for unsigned suffix (u or U)
+    //
+    if (Tok->TextLength > 0) {
+      CHAR8  LastChar = Tok->Text[Tok->TextLength - 1];
+      if (LastChar == 'u' || LastChar == 'U') {
+        IsUnsigned = TRUE;
+      }
+    }
+
+    AST_EXPR  *Expr = AstExprCreateInteger (&Tok->Location, Value, IsUnsigned);
     ParserAdvance (Parser);
     return Expr;
   }
