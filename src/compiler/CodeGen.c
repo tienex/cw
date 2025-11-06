@@ -541,8 +541,30 @@ CodeGenInstruction (
     case IR_CALL:
       {
         //
-        // TODO: Handle arguments
-        // For now, just call
+        // Set up arguments in registers $0, $1, $2, ...
+        // MMIX calling convention: arguments in $0-$N
+        //
+        if (Instr->Args != NULL && Instr->ArgCount > 0) {
+          for (UINT32 i = 0; i < Instr->ArgCount; i++) {
+            CHAR8  ArgReg[32];
+            CHAR8  ArgOperand[256];
+
+            //
+            // Format argument operand
+            //
+            CodeGenGetOperand (Context, &Instr->Args[i], ArgOperand, sizeof (ArgOperand));
+
+            //
+            // Move argument to register $i
+            //
+            snprintf (ArgReg, sizeof (ArgReg), "$%u", i);
+            snprintf (Operands, sizeof (Operands), "%s,%s", ArgReg, ArgOperand);
+            CodeGenEmitInstr (Context, "SET", Operands);
+          }
+        }
+
+        //
+        // Call function
         //
         snprintf (Operands, sizeof (Operands), "$255,%s", Src1);
         CodeGenEmitInstr (Context, "PUSHJ", Operands);
