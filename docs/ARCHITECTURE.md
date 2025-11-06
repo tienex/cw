@@ -212,6 +212,33 @@ Full support for:
 - **Rounding modes**: Round to nearest (ties to even/away), toward zero, toward +∞, toward -∞
 - **Denormal support**: Full support for denormalized numbers
 
+#### 7.2.1 FPR Aliasing Mode (Compatibility Mode)
+
+MMIX supports an optional FPR aliasing mode for compatibility with architectures that lacked separate floating-point register files (e.g., early RISC architectures where FP values were stored in GPRs).
+
+**When Enabled** (`FprAliasedToGpr = TRUE`):
+- F0-F255 are aliased to $0-$255 (general-purpose registers)
+- No separate FP register file; FP operations use GPRs
+- FP values are stored in lower 64 bits of GPRs
+- Compatible with single-precision (32-bit) and double-precision (64-bit) FP
+- Quad-precision (128-bit) operations require register pairs
+
+**When Disabled** (`FprAliasedToGpr = FALSE`, default):
+- F0-F255 are independent 128-bit FP registers
+- Full quad-precision support per register
+- Separate FP register file (modern architecture)
+
+**Use Cases**:
+- Porting legacy code from MIPS I/II (FP in GPRs)
+- Compatibility with early SPARC (FP registers overlaid on integer registers)
+- Simplified hardware implementations (no separate FP register file)
+- Reduced die area for embedded systems
+
+**Performance Considerations**:
+- Aliased mode: No register moves needed between FP and integer operations
+- Separate mode: Parallel FP and integer execution possible
+- Aliased mode: Register pressure increased (shared register file)
+
 ### 7.3 FPU Instructions
 
 **Basic Arithmetic**:

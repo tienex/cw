@@ -97,6 +97,12 @@ MmixCpuInitialize (
   }
 
   //
+  // FPR aliasing disabled by default (separate FP register file)
+  // When enabled, F0-F255 are aliased to $0-$255 (compatibility mode)
+  //
+  Cpu->FprAliasedToGpr = FALSE;
+
+  //
   // Initialize general registers
   // Register $0 is always 0, others start undefined (0)
   //
@@ -524,4 +530,84 @@ MmixCpuDestroy (
   if (CpuState != NULL) {
     free (CpuState);
   }
+}
+
+/**
+  Read a floating-point register.
+
+  Reads from the FP register file. If FprAliasedToGpr mode is enabled,
+  reads from the corresponding GPR instead.
+
+  @param[in]      CpuState      Pointer to CPU state.
+  @param[in]      RegNum        FP register number (0-255).
+  @param[out]     Value         Pointer to receive register value (64-bit).
+
+  @retval MMIX_SUCCESS          Register read successfully.
+  @retval MMIX_ERROR_INVALID_PARAMETER  Invalid register number.
+
+**/
+MMIX_STATUS
+MmixCpuReadFpRegister (
+  IN  MMIX_CPU_STATE  *CpuState,
+  IN  UINT8           RegNum,
+  OUT UINT64          *Value
+  )
+{
+  if (CpuState == NULL || Value == NULL) {
+    return MMIX_ERROR_INVALID_PARAMETER;
+  }
+
+  //
+  // FPR aliasing mode: F0-F255 map to $0-$255
+  //
+  if (CpuState->FprAliasedToGpr) {
+    return MmixCpuReadRegister (CpuState, RegNum, Value);
+  }
+
+  //
+  // Separate FP register file mode
+  // Return lower 64 bits of the 128-bit FP register
+  //
+  *Value = CpuState->FpRegisters[RegNum].Qwords[0];
+  return MMIX_SUCCESS;
+}
+
+/**
+  Write a floating-point register.
+
+  Writes to the FP register file. If FprAliasedToGpr mode is enabled,
+  writes to the corresponding GPR instead.
+
+  @param[in,out]  CpuState      Pointer to CPU state.
+  @param[in]      RegNum        FP register number (0-255).
+  @param[in]      Value         Value to write (64-bit).
+
+  @retval MMIX_SUCCESS          Register written successfully.
+  @retval MMIX_ERROR_INVALID_PARAMETER  Invalid register number.
+
+**/
+MMIX_STATUS
+MmixCpuWriteFpRegister (
+  IN OUT MMIX_CPU_STATE  *CpuState,
+  IN     UINT8           RegNum,
+  IN     UINT64          Value
+  )
+{
+  if (CpuState == NULL) {
+    return MMIX_ERROR_INVALID_PARAMETER;
+  }
+
+  //
+  // FPR aliasing mode: F0-F255 map to $0-$255
+  //
+  if (CpuState->FprAliasedToGpr) {
+    return MmixCpuWriteRegister (CpuState, RegNum, Value);
+  }
+
+  //
+  // Separate FP register file mode
+  // Write to lower 64 bits of the 128-bit FP register
+  //
+  CpuState->FpRegisters[RegNum].Qwords[0] = Value;
+  return MMIX_SUCCESS;
 }

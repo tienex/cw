@@ -196,6 +196,13 @@ struct _MMIX_CPU_STATE {
   BOOLEAN  KesuExtensionEnabled;
 
   //
+  // FPR aliased to GPR mode (compatibility mode)
+  // When TRUE: F0-F255 are aliased to $0-$255 (no separate FP registers)
+  // When FALSE: F0-F255 are independent 128-bit FP registers
+  //
+  BOOLEAN  FprAliasedToGpr;
+
+  //
   // Floating-point rounding mode
   //
   MMIX_ROUNDING_MODE  RoundingMode;
@@ -503,6 +510,52 @@ MmixCpuWriteSpecialRegister (
 VOID
 MmixCpuDestroy (
   IN MMIX_CPU_STATE  *CpuState
+  );
+
+//
+// Floating-point register access functions
+//
+
+/**
+  Read a floating-point register.
+
+  Reads from the FP register file. If FprAliasedToGpr mode is enabled,
+  reads from the corresponding GPR instead.
+
+  @param[in]      CpuState      Pointer to CPU state.
+  @param[in]      RegNum        FP register number (0-255).
+  @param[out]     Value         Pointer to receive register value (64-bit).
+
+  @retval MMIX_SUCCESS          Register read successfully.
+  @retval MMIX_ERROR_INVALID_PARAMETER  Invalid register number.
+
+**/
+MMIX_STATUS
+MmixCpuReadFpRegister (
+  IN  MMIX_CPU_STATE  *CpuState,
+  IN  UINT8           RegNum,
+  OUT UINT64          *Value
+  );
+
+/**
+  Write a floating-point register.
+
+  Writes to the FP register file. If FprAliasedToGpr mode is enabled,
+  writes to the corresponding GPR instead.
+
+  @param[in,out]  CpuState      Pointer to CPU state.
+  @param[in]      RegNum        FP register number (0-255).
+  @param[in]      Value         Value to write (64-bit).
+
+  @retval MMIX_SUCCESS          Register written successfully.
+  @retval MMIX_ERROR_INVALID_PARAMETER  Invalid register number.
+
+**/
+MMIX_STATUS
+MmixCpuWriteFpRegister (
+  IN OUT MMIX_CPU_STATE  *CpuState,
+  IN     UINT8           RegNum,
+  IN     UINT64          Value
   );
 
 //
