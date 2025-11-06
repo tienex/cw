@@ -976,8 +976,8 @@ void va_end(va_list *ap);
 
 - `$N` or `$rN`: General register N (0-255)
 - `rX`: Special register X
-- `vN`: Vector register N (0-31)
-- `pN`: Predicate register N (0-15)
+- `vN` or `VN`: Vector register N (0-255)
+- `pN` or `PN`: Predicate register N (0-63)
 - `zaN`: Matrix tile N (0-7)
 
 ### 12.2 Immediate Values
