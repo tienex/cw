@@ -9,8 +9,6 @@
 **/
 
 #include "binformat/BinFormat.h"
-#include "binformat/LibMacho.h"
-#include "binformat/LibElf.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

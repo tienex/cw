@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../include/binformat/LibCoff.h"
+#include "LibCoff.h"
 
 //
 // COFF File Header Flags

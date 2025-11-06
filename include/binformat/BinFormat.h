@@ -320,9 +320,270 @@ typedef struct {
 } BINFORMAT_ARCHITECTURE;
 
 ///
+/// String encoding types
+///
+typedef enum {
+  BinStringEncodingASCII = 0,      ///< 7-bit ASCII
+  BinStringEncodingUTF8 = 1,       ///< UTF-8
+  BinStringEncodingUTF16LE = 2,    ///< UTF-16 Little Endian
+  BinStringEncodingUTF16BE = 3,    ///< UTF-16 Big Endian
+  BinStringEncodingUTF32LE = 4,    ///< UTF-32 Little Endian
+  BinStringEncodingUTF32BE = 5,    ///< UTF-32 Big Endian
+  BinStringEncodingISO8859_1 = 6,  ///< ISO-8859-1 (Latin-1)
+  BinStringEncodingShiftJIS = 7,   ///< Shift-JIS (Japanese)
+  BinStringEncodingEUCJP = 8,      ///< EUC-JP (Japanese)
+  BinStringEncodingGBK = 9         ///< GBK (Chinese)
+} BINFORMAT_STRING_ENCODING;
+
+///
 /// Binary file context (opaque handle)
 ///
 typedef struct _BINFORMAT_CONTEXT BINFORMAT_CONTEXT;
+
+///
+/// Iterator types (opaque handles for safe iteration)
+///
+typedef struct _BINFORMAT_SECTION_ITERATOR    BINFORMAT_SECTION_ITERATOR;
+typedef struct _BINFORMAT_SYMBOL_ITERATOR     BINFORMAT_SYMBOL_ITERATOR;
+typedef struct _BINFORMAT_SEGMENT_ITERATOR    BINFORMAT_SEGMENT_ITERATOR;
+typedef struct _BINFORMAT_RELOCATION_ITERATOR BINFORMAT_RELOCATION_ITERATOR;
+typedef struct _BINFORMAT_ARCH_ITERATOR       BINFORMAT_ARCH_ITERATOR;
+
+///
+/// Binary input source types
+///
+typedef enum {
+  BinInputTypeFile = 0,      ///< Read/write from/to file path (loads entire file)
+  BinInputTypeBuffer = 1,    ///< Use existing buffer
+  BinInputTypeMmap = 2,      ///< Memory-mapped file
+  BinInputTypeAllocated = 3, ///< Allocated buffer (for creating new images)
+  BinInputTypeStream = 4     ///< Streaming file I/O (memory constrained systems)
+} BINFORMAT_INPUT_TYPE;
+
+///
+/// Binary input/output buffer management structure
+///
+/// This structure provides a unified abstraction for different input/output
+/// methods, allowing backends to avoid code duplication and support:
+/// - Regular file I/O (loading entire file)
+/// - Memory-mapped files (for large files)
+/// - Existing buffers (for in-memory processing)
+/// - Allocated buffers (for creating new binary images)
+/// - Streaming I/O (for memory-constrained systems)
+///
+typedef struct {
+  BINFORMAT_INPUT_TYPE  Type;            ///< Input source type
+  CHAR8                 *FilePath;       ///< File path (for File/Mmap/Stream types)
+  UINT8                 *Data;           ///< Buffer data pointer (NULL for stream mode)
+  UINT64                Size;            ///< Current data size
+  UINT64                Capacity;        ///< Allocated capacity (for resizable buffers)
+  BOOLEAN               ReadOnly;        ///< TRUE for read-only access
+  BOOLEAN               OwnBuffer;       ///< TRUE if we manage the buffer/mapping
+  INT32                 FileDescriptor;  ///< File descriptor (for mmap/stream)
+  VOID                  *MmapBase;       ///< Base address for munmap (mmap only)
+  UINT64                FilePosition;    ///< Current file position (stream mode)
+} BINFORMAT_INPUT;
+
+/**
+  Initialize input from file path (loads entire file into memory).
+
+  This reads the entire file into memory. For large files or memory-constrained
+  systems, consider using BinFormatInputInitFileMmap or BinFormatInputInitFileStream.
+
+  @param[out]  Input             Pointer to input structure.
+  @param[in]   FilePath          Path to file.
+  @param[in]   ReadOnly          TRUE for read-only access.
+
+  @retval BINFORMAT_SUCCESS      Input initialized successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputInitFile(
+  OUT BINFORMAT_INPUT  *Input,
+  IN  CONST CHAR8      *FilePath,
+  IN  BOOLEAN          ReadOnly
+  );
+
+/**
+  Initialize input from file using memory mapping.
+
+  This uses mmap() to map the file into memory without loading it entirely.
+  Good for large files on systems with virtual memory.
+
+  @param[out]  Input             Pointer to input structure.
+  @param[in]   FilePath          Path to file.
+  @param[in]   ReadOnly          TRUE for read-only access.
+
+  @retval BINFORMAT_SUCCESS      Input initialized successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputInitFileMmap(
+  OUT BINFORMAT_INPUT  *Input,
+  IN  CONST CHAR8      *FilePath,
+  IN  BOOLEAN          ReadOnly
+  );
+
+/**
+  Initialize input from file using streaming I/O.
+
+  This uses streaming file I/O for memory-constrained systems. Data is read
+  on-demand using BinFormatInputRead() and written using BinFormatInputWrite().
+
+  @param[out]  Input             Pointer to input structure.
+  @param[in]   FilePath          Path to file.
+  @param[in]   ReadOnly          TRUE for read-only access.
+
+  @retval BINFORMAT_SUCCESS      Input initialized successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputInitFileStream(
+  OUT BINFORMAT_INPUT  *Input,
+  IN  CONST CHAR8      *FilePath,
+  IN  BOOLEAN          ReadOnly
+  );
+
+/**
+  Initialize input from existing buffer.
+
+  @param[out]  Input             Pointer to input structure.
+  @param[in]   Buffer            Pointer to buffer data.
+  @param[in]   Size              Size of buffer.
+  @param[in]   ReadOnly          TRUE for read-only access.
+
+  @retval BINFORMAT_SUCCESS      Input initialized successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputInitBuffer(
+  OUT BINFORMAT_INPUT  *Input,
+  IN  CONST VOID       *Buffer,
+  IN  UINT64           Size,
+  IN  BOOLEAN          ReadOnly
+  );
+
+/**
+  Initialize input with allocated buffer (for creating new binary images).
+
+  @param[out]  Input             Pointer to input structure.
+  @param[in]   InitialSize       Initial buffer size (0 for default).
+
+  @retval BINFORMAT_SUCCESS      Input initialized successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputInitAllocated(
+  OUT BINFORMAT_INPUT  *Input,
+  IN  UINT64           InitialSize
+  );
+
+/**
+  Read data from input at specified offset.
+
+  Works with all input types. For buffered types (File/Buffer/Mmap/Allocated),
+  this is a simple memory copy. For streaming types, this performs a file seek
+  and read operation.
+
+  @param[in]  Input              Input structure.
+  @param[in]  Offset             Offset to read from.
+  @param[out] Buffer             Buffer to read into.
+  @param[in]  Size               Number of bytes to read.
+
+  @retval BINFORMAT_SUCCESS      Data read successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputRead(
+  IN  BINFORMAT_INPUT  *Input,
+  IN  UINT64           Offset,
+  OUT VOID             *Buffer,
+  IN  UINT64           Size
+  );
+
+/**
+  Write data to input at specified offset.
+
+  Works with writable input types. For buffered types, this is a memory copy.
+  For streaming types, this performs a file seek and write operation.
+  For allocated types, automatically resizes the buffer if needed.
+
+  @param[in]  Input              Input structure.
+  @param[in]  Offset             Offset to write to.
+  @param[in]  Buffer             Buffer to write from.
+  @param[in]  Size               Number of bytes to write.
+
+  @retval BINFORMAT_SUCCESS      Data written successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputWrite(
+  IN  BINFORMAT_INPUT  *Input,
+  IN  UINT64           Offset,
+  IN  CONST VOID       *Buffer,
+  IN  UINT64           Size
+  );
+
+/**
+  Resize an allocated buffer.
+
+  Only works with BinInputTypeAllocated. For other types, returns error.
+
+  @param[in]  Input              Input structure.
+  @param[in]  NewSize            New buffer size.
+
+  @retval BINFORMAT_SUCCESS      Buffer resized successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputResize(
+  IN  BINFORMAT_INPUT  *Input,
+  IN  UINT64           NewSize
+  );
+
+/**
+  Flush any pending writes to disk.
+
+  For streaming mode, ensures all buffered writes are written to disk.
+  For memory-mapped files, performs msync().
+  For other modes, this is a no-op.
+
+  @param[in]  Input              Input structure.
+
+  @retval BINFORMAT_SUCCESS      Data flushed successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatInputFlush(
+  IN  BINFORMAT_INPUT  *Input
+  );
+
+/**
+  Get direct pointer to data (if available).
+
+  For buffered types (File/Buffer/Mmap/Allocated), returns pointer to data.
+  For streaming types, returns NULL (must use BinFormatInputRead/Write).
+
+  @param[in]  Input              Input structure.
+
+  @return Pointer to data, or NULL if not available.
+**/
+VOID *
+BinFormatInputGetDataPointer(
+  IN  BINFORMAT_INPUT  *Input
+  );
+
+/**
+  Close and free input resources.
+
+  Closes files, unmaps memory, frees buffers as appropriate for the input type.
+
+  @param[in]  Input              Input structure.
+**/
+VOID
+BinFormatInputClose(
+  IN  BINFORMAT_INPUT  *Input
+  );
 
 ///
 /// File header information
@@ -663,6 +924,243 @@ BINFORMAT_STATUS
   );
 
 /**
+  Create section iterator.
+
+  @param[in]   Context           Binary context.
+  @param[out]  Iterator          Pointer to receive iterator.
+
+  @retval BINFORMAT_SUCCESS      Iterator created.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_SECTION_ITER_CREATE)(
+  IN  BINFORMAT_CONTEXT            *Context,
+  OUT BINFORMAT_SECTION_ITERATOR   **Iterator
+  );
+
+/**
+  Get next section from iterator.
+
+  @param[in]   Iterator          Section iterator.
+  @param[out]  Section           Pointer to receive section.
+
+  @retval BINFORMAT_SUCCESS      Section retrieved.
+  @retval BINFORMAT_ERROR_NOT_FOUND  No more sections.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_SECTION_ITER_NEXT)(
+  IN  BINFORMAT_SECTION_ITERATOR  *Iterator,
+  OUT BINFORMAT_SECTION           *Section
+  );
+
+/**
+  Free section iterator.
+
+  @param[in]   Iterator          Section iterator to free.
+
+**/
+typedef
+VOID
+(*BINFORMAT_SECTION_ITER_FREE)(
+  IN  BINFORMAT_SECTION_ITERATOR  *Iterator
+  );
+
+/**
+  Create symbol iterator.
+
+  @param[in]   Context           Binary context.
+  @param[out]  Iterator          Pointer to receive iterator.
+
+  @retval BINFORMAT_SUCCESS      Iterator created.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_SYMBOL_ITER_CREATE)(
+  IN  BINFORMAT_CONTEXT           *Context,
+  OUT BINFORMAT_SYMBOL_ITERATOR   **Iterator
+  );
+
+/**
+  Get next symbol from iterator.
+
+  @param[in]   Iterator          Symbol iterator.
+  @param[out]  Symbol            Pointer to receive symbol.
+
+  @retval BINFORMAT_SUCCESS      Symbol retrieved.
+  @retval BINFORMAT_ERROR_NOT_FOUND  No more symbols.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_SYMBOL_ITER_NEXT)(
+  IN  BINFORMAT_SYMBOL_ITERATOR  *Iterator,
+  OUT BINFORMAT_SYMBOL           *Symbol
+  );
+
+/**
+  Free symbol iterator.
+
+  @param[in]   Iterator          Symbol iterator to free.
+
+**/
+typedef
+VOID
+(*BINFORMAT_SYMBOL_ITER_FREE)(
+  IN  BINFORMAT_SYMBOL_ITERATOR  *Iterator
+  );
+
+/**
+  Create segment iterator.
+
+  @param[in]   Context           Binary context.
+  @param[out]  Iterator          Pointer to receive iterator.
+
+  @retval BINFORMAT_SUCCESS      Iterator created.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_SEGMENT_ITER_CREATE)(
+  IN  BINFORMAT_CONTEXT            *Context,
+  OUT BINFORMAT_SEGMENT_ITERATOR   **Iterator
+  );
+
+/**
+  Get next segment from iterator.
+
+  @param[in]   Iterator          Segment iterator.
+  @param[out]  Segment           Pointer to receive segment.
+
+  @retval BINFORMAT_SUCCESS      Segment retrieved.
+  @retval BINFORMAT_ERROR_NOT_FOUND  No more segments.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_SEGMENT_ITER_NEXT)(
+  IN  BINFORMAT_SEGMENT_ITERATOR  *Iterator,
+  OUT BINFORMAT_SEGMENT           *Segment
+  );
+
+/**
+  Free segment iterator.
+
+  @param[in]   Iterator          Segment iterator to free.
+
+**/
+typedef
+VOID
+(*BINFORMAT_SEGMENT_ITER_FREE)(
+  IN  BINFORMAT_SEGMENT_ITERATOR  *Iterator
+  );
+
+/**
+  Create relocation iterator for a section.
+
+  @param[in]   Context           Binary context.
+  @param[in]   SectionIndex      Section index.
+  @param[out]  Iterator          Pointer to receive iterator.
+
+  @retval BINFORMAT_SUCCESS      Iterator created.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_RELOCATION_ITER_CREATE)(
+  IN  BINFORMAT_CONTEXT               *Context,
+  IN  UINT32                          SectionIndex,
+  OUT BINFORMAT_RELOCATION_ITERATOR   **Iterator
+  );
+
+/**
+  Get next relocation from iterator.
+
+  @param[in]   Iterator          Relocation iterator.
+  @param[out]  Relocation        Pointer to receive relocation.
+
+  @retval BINFORMAT_SUCCESS      Relocation retrieved.
+  @retval BINFORMAT_ERROR_NOT_FOUND  No more relocations.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_RELOCATION_ITER_NEXT)(
+  IN  BINFORMAT_RELOCATION_ITERATOR  *Iterator,
+  OUT BINFORMAT_RELOCATION           *Relocation
+  );
+
+/**
+  Free relocation iterator.
+
+  @param[in]   Iterator          Relocation iterator to free.
+
+**/
+typedef
+VOID
+(*BINFORMAT_RELOCATION_ITER_FREE)(
+  IN  BINFORMAT_RELOCATION_ITERATOR  *Iterator
+  );
+
+/**
+  Create architecture iterator for fat/universal binaries.
+
+  @param[in]   Context           Binary context.
+  @param[out]  Iterator          Pointer to receive iterator.
+
+  @retval BINFORMAT_SUCCESS      Iterator created.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_ARCH_ITER_CREATE)(
+  IN  BINFORMAT_CONTEXT         *Context,
+  OUT BINFORMAT_ARCH_ITERATOR   **Iterator
+  );
+
+/**
+  Get next architecture from iterator.
+
+  @param[in]   Iterator          Architecture iterator.
+  @param[out]  Architecture      Pointer to receive architecture info.
+
+  @retval BINFORMAT_SUCCESS      Architecture retrieved.
+  @retval BINFORMAT_ERROR_NOT_FOUND  No more architectures.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_ARCH_ITER_NEXT)(
+  IN  BINFORMAT_ARCH_ITERATOR   *Iterator,
+  OUT BINFORMAT_ARCHITECTURE    *Architecture
+  );
+
+/**
+  Free architecture iterator.
+
+  @param[in]   Iterator          Architecture iterator to free.
+
+**/
+typedef
+VOID
+(*BINFORMAT_ARCH_ITER_FREE)(
+  IN  BINFORMAT_ARCH_ITERATOR  *Iterator
+  );
+
+/**
   Binary format library API table.
 
   All binary format libraries (ELF, COFF, a.out, Mach-O) implement
@@ -711,6 +1209,213 @@ typedef struct {
   /// Multi-architecture support
   ///
   BINFORMAT_SELECT_ARCHITECTURE    SelectArchitecture;
+
+  ///
+  /// Iterator operations - safe iteration without raw arrays/pointers
+  ///
+  BINFORMAT_SECTION_ITER_CREATE    SectionIterCreate;
+  BINFORMAT_SECTION_ITER_NEXT      SectionIterNext;
+  BINFORMAT_SECTION_ITER_FREE      SectionIterFree;
+
+  BINFORMAT_SYMBOL_ITER_CREATE     SymbolIterCreate;
+  BINFORMAT_SYMBOL_ITER_NEXT       SymbolIterNext;
+  BINFORMAT_SYMBOL_ITER_FREE       SymbolIterFree;
+
+  BINFORMAT_SEGMENT_ITER_CREATE    SegmentIterCreate;
+  BINFORMAT_SEGMENT_ITER_NEXT      SegmentIterNext;
+  BINFORMAT_SEGMENT_ITER_FREE      SegmentIterFree;
+
+  BINFORMAT_RELOCATION_ITER_CREATE RelocationIterCreate;
+  BINFORMAT_RELOCATION_ITER_NEXT   RelocationIterNext;
+  BINFORMAT_RELOCATION_ITER_FREE   RelocationIterFree;
+
+  BINFORMAT_ARCH_ITER_CREATE       ArchIterCreate;
+  BINFORMAT_ARCH_ITER_NEXT         ArchIterNext;
+  BINFORMAT_ARCH_ITER_FREE         ArchIterFree;
 } BINFORMAT_API;
+
+///
+/// Library API Accessors
+///
+/// These functions return the API table for each binary format library.
+/// Tools should use these to access format-specific implementations.
+///
+
+/**
+  Get ELF binary format library API.
+
+  @return Pointer to ELF library API table.
+**/
+CONST BINFORMAT_API *
+ElfGetApi(
+  VOID
+  );
+
+/**
+  Get COFF/PE binary format library API.
+
+  @return Pointer to COFF library API table.
+**/
+CONST BINFORMAT_API *
+CoffGetApi(
+  VOID
+  );
+
+/**
+  Get Mach-O binary format library API.
+
+  @return Pointer to Mach-O library API table.
+**/
+CONST BINFORMAT_API *
+MachoGetApi(
+  VOID
+  );
+
+/**
+  Get a.out binary format library API.
+
+  @return Pointer to a.out library API table.
+**/
+CONST BINFORMAT_API *
+AoutGetApi(
+  VOID
+  );
+
+/**
+  Get OMF binary format library API.
+
+  @return Pointer to OMF library API table.
+**/
+CONST BINFORMAT_API *
+OmfGetApi(
+  VOID
+  );
+
+/**
+  Get ORF binary format library API.
+
+  @return Pointer to ORF library API table.
+**/
+CONST BINFORMAT_API *
+OrfGetApi(
+  VOID
+  );
+
+/**
+  Get Minidump format library API.
+
+  @return Pointer to Minidump library API table.
+**/
+CONST BINFORMAT_API *
+MinidumpGetApi(
+  VOID
+  );
+
+///
+/// Helper Functions and Default Implementations
+///
+/// These provide default implementations for common operations to avoid
+/// developers and users having to reinvent the wheel.
+///
+
+/**
+  Detect binary format from file.
+
+  This function tries to detect the binary format by attempting to initialize
+  with each known format library. Returns the API of the first library that
+  successfully recognizes the format.
+
+  @param[in]   FilePath          Path to binary file.
+  @param[out]  Context           Pointer to receive context handle.
+  @param[in]   ReadOnly          TRUE for read-only access.
+
+  @retval Pointer to API table if format detected.
+  @retval NULL if format not recognized.
+**/
+CONST BINFORMAT_API *
+BinFormatDetectFile(
+  IN  CONST CHAR8        *FilePath,
+  OUT BINFORMAT_CONTEXT  **Context,
+  IN  BOOLEAN            ReadOnly
+  );
+
+/**
+  Detect binary format from memory buffer.
+
+  @param[in]   Buffer            Pointer to binary data.
+  @param[in]   Size              Size of binary data.
+  @param[out]  Context           Pointer to receive context handle.
+
+  @retval Pointer to API table if format detected.
+  @retval NULL if format not recognized.
+**/
+CONST BINFORMAT_API *
+BinFormatDetectMemory(
+  IN  CONST VOID         *Buffer,
+  IN  UINT64             Size,
+  OUT BINFORMAT_CONTEXT  **Context
+  );
+
+/**
+  Get human-readable name for machine type.
+
+  @param[in]   Machine           Machine type.
+
+  @return Pointer to machine name string.
+**/
+CONST CHAR8 *
+BinFormatGetMachineName(
+  IN  BINFORMAT_MACHINE  Machine
+  );
+
+/**
+  Get human-readable name for file type.
+
+  @param[in]   FileType          File type.
+
+  @return Pointer to file type name string.
+**/
+CONST CHAR8 *
+BinFormatGetFileTypeName(
+  IN  BINFORMAT_FILE_TYPE  FileType
+  );
+
+/**
+  Get human-readable name for symbol type.
+
+  @param[in]   SymbolType        Symbol type.
+
+  @return Pointer to symbol type name string.
+**/
+CONST CHAR8 *
+BinFormatGetSymbolTypeName(
+  IN  BINFORMAT_SYMBOL_TYPE  SymbolType
+  );
+
+/**
+  Get human-readable name for symbol binding.
+
+  @param[in]   SymbolBind        Symbol binding.
+
+  @return Pointer to symbol binding name string.
+**/
+CONST CHAR8 *
+BinFormatGetSymbolBindName(
+  IN  BINFORMAT_SYMBOL_BIND  SymbolBind
+  );
+
+/**
+  Get short symbol type character (for nm-style output).
+
+  Returns characters like 'T' (text), 'D' (data), 'B' (BSS), 'U' (undefined).
+
+  @param[in]   Symbol            Symbol descriptor.
+
+  @return Symbol type character.
+**/
+CHAR8
+BinFormatGetSymbolTypeChar(
+  IN  CONST BINFORMAT_SYMBOL  *Symbol
+  );
 
 #endif // __BINFORMAT_H__

@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../include/binformat/LibAout.h"
+#include "LibAout.h"
 
 #pragma pack(push, 1)
 

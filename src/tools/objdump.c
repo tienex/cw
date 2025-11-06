@@ -9,10 +9,7 @@
 **/
 
 #include "binformat/BinFormat.h"
-#include "binformat/LibElf.h"
 #include "binformat/LibAout.h"
-#include "binformat/LibCoff.h"
-#include "binformat/LibMacho.h"
 #include "binformat/LibOmf.h"
 #include "binformat/LibOrf.h"
 #include <stdio.h>

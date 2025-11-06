@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../include/binformat/LibElf.h"
+#include "LibElf.h"
 
 //
 // Define INLINE for byte-swapping helper functions

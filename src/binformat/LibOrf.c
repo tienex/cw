@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../include/binformat/LibOrf.h"
+#include "LibOrf.h"
 
 #pragma pack(push, 1)
 
