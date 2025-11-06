@@ -67,6 +67,14 @@ OBJDUMP_OBJS = \
 LIBRARIAN_OBJS = \
 	$(BUILD_DIR)/tools/Librarian.o
 
+# Compiler objects
+COMPILER_OBJS = \
+	$(BUILD_DIR)/compiler/Token.o \
+	$(BUILD_DIR)/compiler/Lexer.o \
+	$(BUILD_DIR)/compiler/Ast.o \
+	$(BUILD_DIR)/compiler/Parser.o \
+	$(BUILD_DIR)/compiler/Sema.o
+
 # Default target
 all: $(ALL_TARGETS)
 	@echo ""
