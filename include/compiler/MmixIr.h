@@ -192,6 +192,9 @@ typedef struct {
   UINT32             ParamCount;       // Number of parameters
   AST_TYPE           *ReturnType;      // Return type
   IR_SYMBOL_TABLE    *Symbols;         // Symbol table for this function
+  CHAR8              **AddressTakenVars; // Names of address-taken variables
+  UINT32             AddressTakenCount;  // Number of address-taken variables
+  UINT32             AddressTakenCapacity; // Capacity of AddressTakenVars array
 } IR_FUNCTION;
 
 /**

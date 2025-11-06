@@ -13,6 +13,12 @@
 #include "../../include/compiler/MmixIr.h"
 
 //
+// Forward declarations
+//
+STATIC VOID IrAddAddressTakenVar (IN OUT IR_FUNCTION *Func, IN CONST CHAR8 *Name);
+STATIC BOOLEAN IrIsAddressTaken (IN IR_FUNCTION *Func, IN CONST CHAR8 *Name);
+
+//
 // Simple hash function for symbol table
 //
 STATIC
@@ -270,6 +276,9 @@ IrCreateFunction (
   Func->NextRegNum = 0;
   Func->NextLabelId = 0;
   Func->NextInstrId = 0;
+  Func->AddressTakenVars = NULL;
+  Func->AddressTakenCount = 0;
+  Func->AddressTakenCapacity = 0;
 
   //
   // Get function type information
@@ -616,20 +625,21 @@ IrGenBinaryExpr (
 
   //
   // For assignments, handle left side specially
-  // Don't evaluate if it's an array index or address-taken identifier
+  // Don't evaluate if it's an array index, address-taken identifier, or dereference
   //
   BOOLEAN IsAssignment = (Expr->Binary.Op >= BIN_OP_ASSIGN && Expr->Binary.Op <= BIN_OP_SHR_ASSIGN);
   BOOLEAN IsAddressTakenId = FALSE;
+  BOOLEAN IsDeref = FALSE;
 
   if (IsAssignment && Expr->Binary.Left->Kind == AST_EXPR_IDENTIFIER) {
-    IR_SYMBOL  *Sym = IrLookupSymbol (Context->CurrentFunc->Symbols, Expr->Binary.Left->Identifier.Name);
-    if (Sym != NULL && Sym->Decl != NULL && Sym->Decl->Kind == AST_DECL_VAR && Sym->Decl->Var.AddressTaken) {
-      IsAddressTakenId = TRUE;
-    }
+    IsAddressTakenId = IrIsAddressTaken (Context->CurrentFunc, Expr->Binary.Left->Identifier.Name);
+  } else if (IsAssignment && Expr->Binary.Left->Kind == AST_EXPR_UNARY &&
+             Expr->Binary.Left->Unary.Op == UN_OP_DEREF) {
+    IsDeref = TRUE;
   }
 
-  if (IsAssignment && (Expr->Binary.Left->Kind == AST_EXPR_INDEX || IsAddressTakenId)) {
-    // Special handling for array/address-taken assignment - don't evaluate left side yet
+  if (IsAssignment && (Expr->Binary.Left->Kind == AST_EXPR_INDEX || IsAddressTakenId || IsDeref)) {
+    // Special handling for array/address-taken/dereference assignment - don't evaluate left side yet
     Right = IrGenExpression (Context, Expr->Binary.Right);
   } else {
     // Normal case - evaluate both sides
@@ -795,6 +805,60 @@ IrGenBinaryExpr (
         IrAppendInstruction (Context->CurrentBlock, Instr);
 
         return FinalValue;
+      } else if (Expr->Binary.Left->Kind == AST_EXPR_UNARY && IsDeref) {
+        //
+        // Dereference assignment: *ptr = value
+        // Evaluate pointer to get address, then store
+        //
+        IR_OPERAND  PtrAddr, FinalValue;
+
+        PtrAddr = IrGenExpression (Context, Expr->Binary.Left->Unary.Operand);
+
+        if (Expr->Binary.Op == BIN_OP_ASSIGN) {
+          // Simple assignment
+          FinalValue = Right;
+        } else {
+          // Compound assignment - need to load first
+          IR_OPERAND  OldValue;
+          IR_OPCODE   CompoundOp;
+
+          switch (Expr->Binary.Op) {
+            case BIN_OP_ADD_ASSIGN: CompoundOp = IR_ADD; break;
+            case BIN_OP_SUB_ASSIGN: CompoundOp = IR_SUB; break;
+            case BIN_OP_MUL_ASSIGN: CompoundOp = IR_MUL; break;
+            case BIN_OP_DIV_ASSIGN: CompoundOp = IR_DIV; break;
+            case BIN_OP_MOD_ASSIGN: CompoundOp = IR_MOD; break;
+            case BIN_OP_AND_ASSIGN: CompoundOp = IR_AND; break;
+            case BIN_OP_OR_ASSIGN:  CompoundOp = IR_OR; break;
+            case BIN_OP_XOR_ASSIGN: CompoundOp = IR_XOR; break;
+            case BIN_OP_SHL_ASSIGN: CompoundOp = IR_SHL; break;
+            case BIN_OP_SHR_ASSIGN: CompoundOp = IR_SHR; break;
+            default:                CompoundOp = IR_ADD; break;
+          }
+
+          // Load current value
+          OldValue = IrAllocReg (Context->CurrentFunc, Expr->Type);
+          Instr = IrCreateInstruction (IR_LOAD);
+          Instr->Dst = OldValue;
+          Instr->Src1 = PtrAddr;
+          IrAppendInstruction (Context->CurrentBlock, Instr);
+
+          // Compute new value
+          FinalValue = IrAllocReg (Context->CurrentFunc, Expr->Type);
+          Instr = IrCreateInstruction (CompoundOp);
+          Instr->Dst = FinalValue;
+          Instr->Src1 = OldValue;
+          Instr->Src2 = Right;
+          IrAppendInstruction (Context->CurrentBlock, Instr);
+        }
+
+        // Store through pointer
+        Instr = IrCreateInstruction (IR_STORE);
+        Instr->Src1 = PtrAddr;
+        Instr->Src2 = FinalValue;
+        IrAppendInstruction (Context->CurrentBlock, Instr);
+
+        return FinalValue;
       } else {
         //
         // Regular assignment to variable
@@ -880,6 +944,86 @@ IrGenBinaryExpr (
 }
 
 /**
+  Add variable name to address-taken list.
+
+  @param[in,out]  Func          IR function.
+  @param[in]      Name          Variable name.
+
+**/
+STATIC
+VOID
+IrAddAddressTakenVar (
+  IN OUT IR_FUNCTION  *Func,
+  IN     CONST CHAR8  *Name
+  )
+{
+  CHAR8  **NewArray;
+  UINT32 i;
+
+  if (Func == NULL || Name == NULL) {
+    return;
+  }
+
+  //
+  // Check if already in list
+  //
+  for (i = 0; i < Func->AddressTakenCount; i++) {
+    if (strcmp (Func->AddressTakenVars[i], Name) == 0) {
+      return;  // Already added
+    }
+  }
+
+  //
+  // Grow array if needed
+  //
+  if (Func->AddressTakenCount >= Func->AddressTakenCapacity) {
+    Func->AddressTakenCapacity = (Func->AddressTakenCapacity == 0) ? 8 : Func->AddressTakenCapacity * 2;
+    NewArray = (CHAR8 **)realloc (Func->AddressTakenVars, Func->AddressTakenCapacity * sizeof (CHAR8 *));
+    if (NewArray == NULL) {
+      return;  // Out of memory
+    }
+    Func->AddressTakenVars = NewArray;
+  }
+
+  //
+  // Add name to list
+  //
+  Func->AddressTakenVars[Func->AddressTakenCount] = strdup (Name);
+  Func->AddressTakenCount++;
+}
+
+/**
+  Check if variable is address-taken.
+
+  @param[in]      Func          IR function.
+  @param[in]      Name          Variable name.
+
+  @return  TRUE if address is taken, FALSE otherwise.
+
+**/
+STATIC
+BOOLEAN
+IrIsAddressTaken (
+  IN  IR_FUNCTION  *Func,
+  IN  CONST CHAR8  *Name
+  )
+{
+  UINT32  i;
+
+  if (Func == NULL || Name == NULL) {
+    return FALSE;
+  }
+
+  for (i = 0; i < Func->AddressTakenCount; i++) {
+    if (strcmp (Func->AddressTakenVars[i], Name) == 0) {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+/**
   Scan expression tree to mark address-taken variables.
 
   @param[in,out]  Context       IR context.
@@ -893,9 +1037,8 @@ IrMarkAddressTaken (
   IN     AST_EXPR    *Expr
   )
 {
-  IR_SYMBOL  *Sym;
 
-  if (Expr == NULL) {
+  if (Expr == NULL || Context->CurrentFunc == NULL) {
     return;
   }
 
@@ -904,12 +1047,9 @@ IrMarkAddressTaken (
       if (Expr->Unary.Op == UN_OP_ADDRESS_OF &&
           Expr->Unary.Operand->Kind == AST_EXPR_IDENTIFIER) {
         //
-        // Mark this variable as address-taken
+        // Add this variable name to address-taken list
         //
-        Sym = IrLookupSymbol (Context->CurrentFunc->Symbols, Expr->Unary.Operand->Identifier.Name);
-        if (Sym != NULL && Sym->Decl != NULL && Sym->Decl->Kind == AST_DECL_VAR) {
-          Sym->Decl->Var.AddressTaken = TRUE;
-        }
+        IrAddAddressTakenVar (Context->CurrentFunc, Expr->Unary.Operand->Identifier.Name);
       }
       IrMarkAddressTaken (Context, Expr->Unary.Operand);
       break;
@@ -1046,12 +1186,13 @@ IrGenUnaryExpr (
   // The operand already contains the address, so just return it
   //
   if (Expr->Unary.Op == UN_OP_ADDRESS_OF &&
-      Expr->Unary.Operand->Kind == AST_EXPR_IDENTIFIER) {
+      Expr->Unary.Operand->Kind == AST_EXPR_IDENTIFIER &&
+      IrIsAddressTaken (Context->CurrentFunc, Expr->Unary.Operand->Identifier.Name)) {
+    //
+    // Address-taken variable - the symbol's operand is already the address
+    //
     IR_SYMBOL  *Sym = IrLookupSymbol (Context->CurrentFunc->Symbols, Expr->Unary.Operand->Identifier.Name);
-    if (Sym != NULL && Sym->Decl != NULL && Sym->Decl->Kind == AST_DECL_VAR && Sym->Decl->Var.AddressTaken) {
-      //
-      // Address-taken variable - the symbol's operand is already the address
-      //
+    if (Sym != NULL) {
       return Sym->Operand;
     }
   }
@@ -1135,7 +1276,7 @@ IrGenExpression (
             //
             // Check if this is an address-taken variable
             //
-            if (Sym->Decl != NULL && Sym->Decl->Kind == AST_DECL_VAR && Sym->Decl->Var.AddressTaken) {
+            if (IrIsAddressTaken (Context->CurrentFunc, Expr->Identifier.Name)) {
               //
               // Address-taken variable - generate LOAD to read value from memory
               //
@@ -1667,7 +1808,7 @@ IrGenStatement (
             AllocaInstr->Dst = VarOp;
             AllocaInstr->Src1 = Size;
             IrAppendInstruction (Context->CurrentBlock, AllocaInstr);
-          } else if (Decl->Var.AddressTaken) {
+          } else if (IrIsAddressTaken (Context->CurrentFunc, Decl->Name)) {
             //
             // Address-taken scalar variable - allocate on stack
             //
@@ -1717,7 +1858,7 @@ IrGenStatement (
 
             InitValue = IrGenExpression (Context, Decl->Var.Initializer);
 
-            if (Decl->Var.AddressTaken) {
+            if (IrIsAddressTaken (Context->CurrentFunc, Decl->Name)) {
               //
               // Address-taken variable - use STORE to initialize
               //

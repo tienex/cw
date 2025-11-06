@@ -14,7 +14,8 @@ int test_array_pointer() {
 }
 
 // CHECK-LABEL: test_array_pointer:
-// CHECK: ALLOCA
+// CHECK: SET
+// CHECK: SUBU
 // CHECK: STO
 // CHECK: LDO
 
