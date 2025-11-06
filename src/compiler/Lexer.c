@@ -623,7 +623,11 @@ LexerNextToken (
     case '<':
       if (Lexer->CurrentChar == '<') {
         LexerAdvance (Lexer);
-        if (Lexer->CurrentChar == '=') {
+        if (Lexer->CurrentChar == '>') {
+          // <<> (rotate left, MMIX extension)
+          LexerAdvance (Lexer);
+          Token = TokenCreate (TOK_ROTATE_LEFT, &Location, "<<>", 3);
+        } else if (Lexer->CurrentChar == '=') {
           LexerAdvance (Lexer);
           Token = TokenCreate (TOK_SHIFT_LEFT_EQUAL, &Location, "<<=", 3);
         } else {
@@ -640,7 +644,11 @@ LexerNextToken (
     case '>':
       if (Lexer->CurrentChar == '>') {
         LexerAdvance (Lexer);
-        if (Lexer->CurrentChar == '=') {
+        if (Lexer->CurrentChar == '<') {
+          // >>< (rotate right, MMIX extension)
+          LexerAdvance (Lexer);
+          Token = TokenCreate (TOK_ROTATE_RIGHT, &Location, ">><", 3);
+        } else if (Lexer->CurrentChar == '=') {
           LexerAdvance (Lexer);
           Token = TokenCreate (TOK_SHIFT_RIGHT_EQUAL, &Location, ">>=", 3);
         } else {

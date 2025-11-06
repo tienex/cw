@@ -662,6 +662,8 @@ IrGenBinaryExpr (
     case BIN_OP_BIT_CONCAT: Opcode = IR_BFCONCAT; break;
     case BIN_OP_SHIFT_LEFT:  Opcode = IR_SHL; break;
     case BIN_OP_SHIFT_RIGHT: Opcode = IR_SHR; break;
+    case BIN_OP_ROTATE_LEFT:  Opcode = IR_ROL; break;
+    case BIN_OP_ROTATE_RIGHT: Opcode = IR_ROR; break;
     case BIN_OP_EQ:         Opcode = IR_EQ; break;
     case BIN_OP_NE:         Opcode = IR_NE; break;
     case BIN_OP_LT:         Opcode = IR_LT; break;

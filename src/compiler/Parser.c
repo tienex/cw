@@ -200,6 +200,8 @@ GetOperatorPrecedence (
 
     case TOK_SHIFT_LEFT:
     case TOK_SHIFT_RIGHT:
+    case TOK_ROTATE_LEFT:
+    case TOK_ROTATE_RIGHT:
       return 11;
 
     case TOK_LESS:
@@ -261,6 +263,8 @@ TokenToBinaryOp (
     case TOK_DOT_DOT:           return BIN_OP_BIT_CONCAT;
     case TOK_SHIFT_LEFT:        return BIN_OP_SHIFT_LEFT;
     case TOK_SHIFT_RIGHT:       return BIN_OP_SHIFT_RIGHT;
+    case TOK_ROTATE_LEFT:       return BIN_OP_ROTATE_LEFT;
+    case TOK_ROTATE_RIGHT:      return BIN_OP_ROTATE_RIGHT;
     case TOK_LOGICAL_AND:       return BIN_OP_LOGICAL_AND;
     case TOK_LOGICAL_OR:        return BIN_OP_LOGICAL_OR;
     case TOK_EQUAL_EQUAL:       return BIN_OP_EQ;

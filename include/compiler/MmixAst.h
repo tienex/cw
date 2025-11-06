@@ -179,6 +179,8 @@ typedef enum {
   BIN_OP_BIT_CONCAT,      // .. (bit concatenation, MMIX extension)
   BIN_OP_SHIFT_LEFT,      // <<
   BIN_OP_SHIFT_RIGHT,     // >>
+  BIN_OP_ROTATE_LEFT,     // <<> (rotate left, MMIX extension)
+  BIN_OP_ROTATE_RIGHT,    // >>< (rotate right, MMIX extension)
   BIN_OP_LOGICAL_AND,     // &&
   BIN_OP_LOGICAL_OR,      // ||
   BIN_OP_EQ,              // ==

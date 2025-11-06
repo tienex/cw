@@ -219,6 +219,8 @@ typedef enum {
   TOK_ARROW,            // ->
   TOK_SHIFT_LEFT,       // <<
   TOK_SHIFT_RIGHT,      // >>
+  TOK_ROTATE_LEFT,      // <<> (MMIX extension)
+  TOK_ROTATE_RIGHT,     // >>< (MMIX extension)
   TOK_LESS_EQUAL,       // <=
   TOK_GREATER_EQUAL,    // >=
   TOK_EQUAL_EQUAL,      // ==

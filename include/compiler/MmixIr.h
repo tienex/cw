@@ -37,6 +37,8 @@ typedef enum {
   IR_NOT,               // dst = ~a
   IR_SHL,               // dst = a << b
   IR_SHR,               // dst = a >> b
+  IR_ROL,               // dst = a <<> b (rotate left)
+  IR_ROR,               // dst = a >>< b (rotate right)
   IR_BFEXT,             // dst = bitfield_extract(src, index, count)
   IR_BFINS,             // dst = bitfield_insert(dst, src, index, count)
   IR_BFCONCAT,          // dst = a .. b (bit concatenation)

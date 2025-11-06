@@ -450,6 +450,56 @@ CodeGenInstruction (
       break;
 
     //
+    // Rotate operations (MMIX extension)
+    // Synthesized from shift operations: ROL(x,n) = (x << n) | (x >> (64-n))
+    //
+    case IR_ROL:
+      {
+        // ROL: dst = (src1 << src2) | (src1 >> (64 - src2))
+        // Use $32 and $33 as temporary registers
+
+        // $32 = src1 << src2 (left shift part)
+        snprintf (Operands, sizeof (Operands), "$32,%s,%s", Src1, Src2);
+        CodeGenEmitInstr (Context, "SLU", Operands);
+
+        // $33 = 64 - src2 (compute right shift amount)
+        snprintf (Operands, sizeof (Operands), "$33,64,%s", Src2);
+        CodeGenEmitInstr (Context, "SUBU", Operands);
+
+        // $33 = src1 >> $33 (right shift part)
+        snprintf (Operands, sizeof (Operands), "$33,%s,$33", Src1);
+        CodeGenEmitInstr (Context, "SRU", Operands);
+
+        // dst = $32 | $33 (combine)
+        snprintf (Operands, sizeof (Operands), "%s,$32,$33", Dst);
+        CodeGenEmitInstr (Context, "OR", Operands);
+      }
+      break;
+
+    case IR_ROR:
+      {
+        // ROR: dst = (src1 >> src2) | (src1 << (64 - src2))
+        // Use $32 and $33 as temporary registers
+
+        // $32 = src1 >> src2 (right shift part)
+        snprintf (Operands, sizeof (Operands), "$32,%s,%s", Src1, Src2);
+        CodeGenEmitInstr (Context, "SRU", Operands);
+
+        // $33 = 64 - src2 (compute left shift amount)
+        snprintf (Operands, sizeof (Operands), "$33,64,%s", Src2);
+        CodeGenEmitInstr (Context, "SUBU", Operands);
+
+        // $33 = src1 << $33 (left shift part)
+        snprintf (Operands, sizeof (Operands), "$33,%s,$33", Src1);
+        CodeGenEmitInstr (Context, "SLU", Operands);
+
+        // dst = $32 | $33 (combine)
+        snprintf (Operands, sizeof (Operands), "%s,$32,$33", Dst);
+        CodeGenEmitInstr (Context, "OR", Operands);
+      }
+      break;
+
+    //
     // Bit field operations (MMIX extension)
     //
     case IR_BFEXT:
