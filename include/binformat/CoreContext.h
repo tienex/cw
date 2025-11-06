@@ -1149,4 +1149,471 @@ typedef struct ALIGNED_STRUCT(8) _SPARC64_CONTEXT {
   UINT64  Fsr;
 } SPARC64_CONTEXT, *PSPARC64_CONTEXT;
 
+///
+/// ========================================================================
+/// ARCHITECTURE EXTENSIONS
+/// ========================================================================
+///
+
+//
+// x86/x64 Extension Context Flags
+//
+#define CONTEXT_XSTATE_APX              0x00000080  ///< APX extended GPRs (R16-R31)
+#define CONTEXT_XSTATE_AMX              0x00040000  ///< AMX tile registers
+
+//
+// ARM64 Extension Context Flags
+//
+#define CONTEXT_ARM64_SVE               0x00000010  ///< SVE vector/predicate registers
+#define CONTEXT_ARM64_SME               0x00000020  ///< SME matrix array
+#define CONTEXT_ARM64_SME2              0x00000040  ///< SME2 (includes ZT0)
+
+//
+// MIPS Extension Context Flags
+//
+#define CONTEXT_MIPS_MDMX               0x00000010  ///< MDMX SIMD extension
+#define CONTEXT_MIPS_3D                 0x00000020  ///< MIPS-3D extension
+#define CONTEXT_MIPS_DSP                0x00000040  ///< DSP ASE
+#define CONTEXT_MIPS_DSP2               0x00000080  ///< DSP ASE Release 2
+#define CONTEXT_MIPS_DSP3               0x00000100  ///< DSP ASE Release 3
+#define CONTEXT_MIPS_LOONGSON_MMI       0x00000200  ///< Loongson MMI
+#define CONTEXT_MIPS_LOONGSON_CAM       0x00000400  ///< Loongson CAM
+#define CONTEXT_MIPS_LOONGSON_EXT       0x00000800  ///< Loongson EXT
+#define CONTEXT_MIPS_LOONGSON_EXT2      0x00001000  ///< Loongson EXT2
+
+//
+// ARM Extension Context Flags (32-bit)
+//
+#define CONTEXT_ARM_FPA                 0x00000010  ///< Floating Point Accelerator
+#define CONTEXT_ARM_VFPv1               0x00000020  ///< VFPv1
+#define CONTEXT_ARM_VFPv2               0x00000040  ///< VFPv2
+#define CONTEXT_ARM_VFPv3               0x00000080  ///< VFPv3
+#define CONTEXT_ARM_VFPv4               0x00000100  ///< VFPv4
+#define CONTEXT_ARM_WMMX                0x00000200  ///< Intel Wireless MMX
+
+//
+// Alpha/Sunway Context Flags
+//
+#define CONTEXT_ALPHA64                 0x00010000
+#define CONTEXT_ALPHA64_CONTROL         (CONTEXT_ALPHA64 | 0x00000001)
+#define CONTEXT_ALPHA64_INTEGER         (CONTEXT_ALPHA64 | 0x00000002)
+#define CONTEXT_ALPHA64_FLOATING_POINT  (CONTEXT_ALPHA64 | 0x00000004)
+#define CONTEXT_ALPHA64_FULL            (CONTEXT_ALPHA64_CONTROL | CONTEXT_ALPHA64_INTEGER)
+#define CONTEXT_ALPHA64_ALL             (CONTEXT_ALPHA64_FULL | CONTEXT_ALPHA64_FLOATING_POINT)
+
+#define CONTEXT_SUNWAY64                0x00020000
+#define CONTEXT_SUNWAY64_CONTROL        (CONTEXT_SUNWAY64 | 0x00000001)
+#define CONTEXT_SUNWAY64_INTEGER        (CONTEXT_SUNWAY64 | 0x00000002)
+#define CONTEXT_SUNWAY64_FLOATING_POINT (CONTEXT_SUNWAY64 | 0x00000004)
+#define CONTEXT_SUNWAY64_VECTOR         (CONTEXT_SUNWAY64 | 0x00000008)  ///< 512-bit vectors
+#define CONTEXT_SUNWAY64_FULL           (CONTEXT_SUNWAY64_CONTROL | CONTEXT_SUNWAY64_INTEGER)
+#define CONTEXT_SUNWAY64_ALL            (CONTEXT_SUNWAY64_FULL | CONTEXT_SUNWAY64_FLOATING_POINT | \
+                                         CONTEXT_SUNWAY64_VECTOR)
+
+///
+/// ========================================================================
+/// X86/X64 EXTENSIONS
+/// ========================================================================
+///
+
+///
+/// Intel APX (Advanced Performance Extensions) - Extended GPRs R16-R31
+///
+typedef struct _APX_CONTEXT {
+  UINT64  R16;
+  UINT64  R17;
+  UINT64  R18;
+  UINT64  R19;
+  UINT64  R20;
+  UINT64  R21;
+  UINT64  R22;
+  UINT64  R23;
+  UINT64  R24;
+  UINT64  R25;
+  UINT64  R26;
+  UINT64  R27;
+  UINT64  R28;
+  UINT64  R29;
+  UINT64  R30;
+  UINT64  R31;
+} APX_CONTEXT, *PAPX_CONTEXT;
+
+///
+/// AMX Tile Configuration Structure
+///
+typedef struct _AMX_TILECFG {
+  UINT8   PaletteId;        ///< Palette selector (0=init, 1=8KB across 8 tiles)
+  UINT8   StartRow;         ///< Starting row
+  UINT8   Reserved[14];     ///< Reserved bytes
+  UINT16  Colb[16];         ///< Columns in bytes for each tile (0-15)
+  UINT8   Rows[16];         ///< Rows for each tile (0-15, max 16)
+} AMX_TILECFG, *PAMX_TILECFG;
+
+///
+/// Intel AMX (Advanced Matrix Extensions) - Tile Registers
+/// Each tile is max 16 rows × 64 bytes = 1024 bytes
+///
+typedef struct ALIGNED_STRUCT(64) _AMX_CONTEXT {
+  AMX_TILECFG  TileConfig;
+  UINT8        Tmm0[1024];  ///< Tile 0 data
+  UINT8        Tmm1[1024];  ///< Tile 1 data
+  UINT8        Tmm2[1024];  ///< Tile 2 data
+  UINT8        Tmm3[1024];  ///< Tile 3 data
+  UINT8        Tmm4[1024];  ///< Tile 4 data
+  UINT8        Tmm5[1024];  ///< Tile 5 data
+  UINT8        Tmm6[1024];  ///< Tile 6 data
+  UINT8        Tmm7[1024];  ///< Tile 7 data
+} AMX_CONTEXT, *PAMX_CONTEXT;
+
+///
+/// ========================================================================
+/// ARM64 EXTENSIONS
+/// ========================================================================
+///
+
+///
+/// ARM SVE (Scalable Vector Extension)
+/// Vector length is implementation-defined from 128 to 2048 bits (16 to 256 bytes)
+/// This structure uses maximum size; actual size determined by VL register
+///
+typedef struct ALIGNED_STRUCT(16) _SVE_CONTEXT {
+  //
+  // Vector length in bytes (16, 32, 64, 128, or 256)
+  //
+  UINT16  Vl;           ///< Vector length in bytes
+  UINT16  Reserved;
+  UINT32  Padding;
+
+  //
+  // 32 scalable vector registers Z0-Z31 (max 256 bytes each)
+  //
+  UINT8   Z[32][256];
+
+  //
+  // 16 predicate registers P0-P15 (max 32 bytes each, 1 bit per vector byte)
+  //
+  UINT8   P[16][32];
+
+  //
+  // First-Fault Register (FFR) - special predicate for fault-tolerant loads
+  //
+  UINT8   Ffr[32];
+} SVE_CONTEXT, *PSVE_CONTEXT;
+
+///
+/// ARM SME (Scalable Matrix Extension)
+/// ZA array size is (SVL/8) × (SVL/8) bytes, max 64×64 = 4096 bytes
+///
+typedef struct ALIGNED_STRUCT(16) _SME_CONTEXT {
+  //
+  // Streaming vector length in bytes
+  //
+  UINT16  Svl;          ///< Streaming vector length in bytes
+  UINT16  Reserved;
+
+  //
+  // PSTATE.SM and PSTATE.ZA bits
+  //
+  UINT8   PstateSm;     ///< Streaming mode active
+  UINT8   PstateZa;     ///< ZA storage active
+  UINT16  Padding;
+
+  //
+  // ZA matrix array register (max 64×64 = 4096 bytes)
+  //
+  UINT8   Za[4096];
+} SME_CONTEXT, *PSME_CONTEXT;
+
+///
+/// ARM SME2 Extensions - ZT0 lookup table register
+///
+typedef struct ALIGNED_STRUCT(16) _SME2_CONTEXT {
+  //
+  // ZT0: 512-bit lookup table register (16 entries × 32 bits)
+  //
+  UINT8   Zt0[64];
+} SME2_CONTEXT, *PSME2_CONTEXT;
+
+///
+/// ========================================================================
+/// MIPS EXTENSIONS
+/// ========================================================================
+///
+
+///
+/// MIPS MDMX (MIPS Digital Media eXtension) Context
+/// Uses FP register file for 64-bit SIMD operations
+/// Deprecated in Release 5, removed in Release 6
+///
+typedef struct _MDMX_CONTEXT {
+  //
+  // OB format (Octet Byte) - 8×8-bit operations
+  // QH format (Quad Halfword) - 4×16-bit operations
+  // Uses existing FP registers, no additional state
+  //
+  UINT32  MdmxControl;  ///< MDMX control/status
+} MDMX_CONTEXT, *PMDMX_CONTEXT;
+
+///
+/// MIPS-3D Extension Context
+/// Floating-point SIMD for 3D graphics
+///
+typedef struct _MIPS3D_CONTEXT {
+  UINT32  Mips3dControl;  ///< MIPS-3D control/status
+} MIPS3D_CONTEXT, *PMIPS3D_CONTEXT;
+
+///
+/// MIPS DSP ASE Context (Release 1, 2, 3)
+///
+typedef struct ALIGNED_STRUCT(8) _MIPS_DSP_CONTEXT {
+  //
+  // DSPControl register
+  //
+  UINT32  DspControl;
+  UINT32  Reserved;
+
+  //
+  // Six 64-bit accumulators (ac0-ac5) for DSP operations
+  //
+  UINT64  Ac0;
+  UINT64  Ac1;
+  UINT64  Ac2;
+  UINT64  Ac3;
+  UINT64  Ac4;  ///< DSP R2+
+  UINT64  Ac5;  ///< DSP R2+
+} MIPS_DSP_CONTEXT, *PMIPS_DSP_CONTEXT;
+
+///
+/// Loongson MMI (MultiMedia Instructions) Context
+///
+typedef struct _LOONGSON_MMI_CONTEXT {
+  UINT32  MmiControl;
+  UINT32  Reserved;
+} LOONGSON_MMI_CONTEXT, *PLOONGSON_MMI_CONTEXT;
+
+///
+/// Loongson CAM (Content Addressable Memory) Context
+///
+typedef struct _LOONGSON_CAM_CONTEXT {
+  UINT32  CamControl;
+  UINT32  Reserved;
+} LOONGSON_CAM_CONTEXT, *PLOONGSON_CAM_CONTEXT;
+
+///
+/// Loongson EXT/EXT2 Context
+///
+typedef struct _LOONGSON_EXT_CONTEXT {
+  UINT32  ExtControl;
+  UINT32  Reserved;
+} LOONGSON_EXT_CONTEXT, *PLOONGSON_EXT_CONTEXT;
+
+///
+/// ========================================================================
+/// ARM 32-BIT FP/SIMD VARIANTS
+/// ========================================================================
+///
+
+///
+/// ARM FPA (Floating Point Accelerator) - original ARM FP coprocessor
+///
+typedef struct _ARM_FPA_CONTEXT {
+  UINT8   F0[12];   ///< 96-bit extended precision
+  UINT8   F1[12];
+  UINT8   F2[12];
+  UINT8   F3[12];
+  UINT8   F4[12];
+  UINT8   F5[12];
+  UINT8   F6[12];
+  UINT8   F7[12];
+  UINT32  Fpsr;     ///< FP status register
+  UINT32  Fpcr;     ///< FP control register
+} ARM_FPA_CONTEXT, *PARM_FPA_CONTEXT;
+
+///
+/// ARM VFPv1/v2 Context - 16 double-precision registers
+///
+typedef struct ALIGNED_STRUCT(8) _ARM_VFPV2_CONTEXT {
+  UINT64  D[16];    ///< D0-D15 (or S0-S31 as 32 singles)
+  UINT32  Fpscr;    ///< FP status and control register
+  UINT32  Fpexc;    ///< FP exception register
+} ARM_VFPV2_CONTEXT, *PARM_VFPV2_CONTEXT;
+
+///
+/// ARM VFPv3/v4 Context - 32 double-precision registers
+///
+typedef struct ALIGNED_STRUCT(8) _ARM_VFPV3_CONTEXT {
+  UINT64  D[32];    ///< D0-D31 (or S0-S63 as 64 singles)
+  UINT32  Fpscr;    ///< FP status and control register
+  UINT32  Fpexc;    ///< FP exception register
+} ARM_VFPV3_CONTEXT, *PARM_VFPV3_CONTEXT;
+
+///
+/// Intel Wireless MMX (WMMX) Context
+/// Used in XScale processors
+///
+typedef struct ALIGNED_STRUCT(8) _ARM_WMMX_CONTEXT {
+  UINT64  Wr[16];       ///< wR0-wR15: 64-bit multimedia registers
+  UINT32  Wcgr[4];      ///< wCGR0-wCGR3: control/general registers
+  UINT32  Wcssf;        ///< wCSSF: SIMD status flags
+  UINT32  Wcasf;        ///< wCASF: accumulator status flags
+  UINT32  Wcid;         ///< wCID: coprocessor ID
+  UINT32  Wcon;         ///< wCon: control register
+} ARM_WMMX_CONTEXT, *PARM_WMMX_CONTEXT;
+
+///
+/// ========================================================================
+/// ALPHA AND SUNWAY ARCHITECTURES
+/// ========================================================================
+///
+
+///
+/// DEC Alpha AXP Context Structure
+/// Note: Alpha is always 64-bit; "Alpha32" refers to 32-bit pointers in NT,
+/// not a processor mode. All registers are full 64-bit.
+///
+typedef struct ALIGNED_STRUCT(8) _ALPHA64_CONTEXT {
+  UINT32  ContextFlags;
+  UINT32  Reserved;
+
+  //
+  // Integer registers V0-T12 (R0-R31)
+  //
+  UINT64  V0;       ///< R0: Return value/temp
+  UINT64  T0;       ///< R1: Temporary
+  UINT64  T1;       ///< R2: Temporary
+  UINT64  T2;       ///< R3: Temporary
+  UINT64  T3;       ///< R4: Temporary
+  UINT64  T4;       ///< R5: Temporary
+  UINT64  T5;       ///< R6: Temporary
+  UINT64  T6;       ///< R7: Temporary
+  UINT64  T7;       ///< R8: Temporary
+  UINT64  S0;       ///< R9: Saved
+  UINT64  S1;       ///< R10: Saved
+  UINT64  S2;       ///< R11: Saved
+  UINT64  S3;       ///< R12: Saved
+  UINT64  S4;       ///< R13: Saved
+  UINT64  S5;       ///< R14: Saved
+  UINT64  Fp;       ///< R15: Frame pointer
+  UINT64  A0;       ///< R16: Argument 0
+  UINT64  A1;       ///< R17: Argument 1
+  UINT64  A2;       ///< R18: Argument 2
+  UINT64  A3;       ///< R19: Argument 3
+  UINT64  A4;       ///< R20: Argument 4
+  UINT64  A5;       ///< R21: Argument 5
+  UINT64  T8;       ///< R22: Temporary
+  UINT64  T9;       ///< R23: Temporary
+  UINT64  T10;      ///< R24: Temporary
+  UINT64  T11;      ///< R25: Temporary
+  UINT64  Ra;       ///< R26: Return address
+  UINT64  T12;      ///< R27: Temporary (PV)
+  UINT64  At;       ///< R28: Assembler temp
+  UINT64  Gp;       ///< R29: Global pointer
+  UINT64  Sp;       ///< R30: Stack pointer
+  UINT64  Zero;     ///< R31: Always zero
+
+  //
+  // Floating-point registers F0-F31
+  //
+  UINT64  F0;       ///< FP return value
+  UINT64  F1;       ///< FP temporary
+  UINT64  F2;       ///< FP saved
+  UINT64  F3;       ///< FP saved
+  UINT64  F4;       ///< FP saved
+  UINT64  F5;       ///< FP saved
+  UINT64  F6;       ///< FP saved
+  UINT64  F7;       ///< FP saved
+  UINT64  F8;       ///< FP saved
+  UINT64  F9;       ///< FP saved
+  UINT64  F10;      ///< FP temporary
+  UINT64  F11;      ///< FP temporary
+  UINT64  F12;      ///< FP temporary
+  UINT64  F13;      ///< FP temporary
+  UINT64  F14;      ///< FP temporary
+  UINT64  F15;      ///< FP temporary
+  UINT64  F16;      ///< FP argument 0
+  UINT64  F17;      ///< FP argument 1
+  UINT64  F18;      ///< FP argument 2
+  UINT64  F19;      ///< FP argument 3
+  UINT64  F20;      ///< FP argument 4
+  UINT64  F21;      ///< FP argument 5
+  UINT64  F22;      ///< FP temporary
+  UINT64  F23;      ///< FP temporary
+  UINT64  F24;      ///< FP temporary
+  UINT64  F25;      ///< FP temporary
+  UINT64  F26;      ///< FP temporary
+  UINT64  F27;      ///< FP temporary
+  UINT64  F28;      ///< FP temporary
+  UINT64  F29;      ///< FP temporary
+  UINT64  F30;      ///< FP temporary
+  UINT64  Fzero;    ///< F31: Always +0.0
+
+  //
+  // Control registers
+  //
+  UINT64  Pc;       ///< Program counter
+  UINT64  Fpcr;     ///< FP control register
+  UINT64  SoftFpcr; ///< Software FP control
+} ALPHA64_CONTEXT, *PALPHA64_CONTEXT;
+
+///
+/// Sunway SW64 Context Structure
+/// Based on Alpha-like architecture with 512-bit vector extensions
+///
+typedef struct ALIGNED_STRUCT(8) _SUNWAY64_CONTEXT {
+  UINT32  ContextFlags;
+  UINT32  Reserved;
+
+  //
+  // Integer registers R0-R31 (Alpha-like naming)
+  //
+  UINT64  R0;       ///< Return value
+  UINT64  R1;       ///< Temporary
+  UINT64  R2;       ///< Temporary
+  UINT64  R3;       ///< Temporary
+  UINT64  R4;       ///< Temporary
+  UINT64  R5;       ///< Temporary
+  UINT64  R6;       ///< Temporary
+  UINT64  R7;       ///< Temporary
+  UINT64  R8;       ///< Temporary
+  UINT64  R9;       ///< Saved
+  UINT64  R10;      ///< Saved
+  UINT64  R11;      ///< Saved
+  UINT64  R12;      ///< Saved
+  UINT64  R13;      ///< Saved
+  UINT64  R14;      ///< Saved
+  UINT64  R15;      ///< Frame pointer
+  UINT64  R16;      ///< Argument 0
+  UINT64  R17;      ///< Argument 1
+  UINT64  R18;      ///< Argument 2
+  UINT64  R19;      ///< Argument 3
+  UINT64  R20;      ///< Argument 4
+  UINT64  R21;      ///< Argument 5
+  UINT64  R22;      ///< Temporary
+  UINT64  R23;      ///< Temporary
+  UINT64  R24;      ///< Temporary
+  UINT64  R25;      ///< Temporary
+  UINT64  R26;      ///< Return address
+  UINT64  R27;      ///< Temporary
+  UINT64  R28;      ///< Assembler temp
+  UINT64  R29;      ///< Global pointer
+  UINT64  R30;      ///< Stack pointer
+  UINT64  R31;      ///< Always zero
+
+  //
+  // Floating-point registers F0-F31
+  //
+  UINT64  FloatReg[32];
+
+  //
+  // 512-bit vector registers V0-V31 (CPE cores)
+  //
+  UINT8   V[32][64];
+
+  //
+  // Control registers
+  //
+  UINT64  Pc;
+  UINT64  Fpcr;
+} SUNWAY64_CONTEXT, *PSUNWAY64_CONTEXT;
+
 #endif // __CORE_CONTEXT_H__
