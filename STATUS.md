@@ -25,7 +25,7 @@ A comprehensive MMIX emulator implementing Donald Knuth's MMIX architecture with
 - [x] Basic instruction execution (arithmetic, logical, memory, branches)
 - [x] Physical memory subsystem
 - [x] TLB implementation
-- [x] Endianness support (big/little)
+- [x] Endianness support (big/little with runtime host detection)
 - [x] Exception and interrupt handling
 - [x] Emulator context and lifecycle
 

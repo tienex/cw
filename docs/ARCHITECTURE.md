@@ -145,8 +145,12 @@ VM exits occur on:
 
 - **Big-endian mode**: Traditional MMIX (default for compatibility)
 - **Little-endian mode**: Modern systems compatibility
-- **Per-mode configuration**: Separate settings for kernel and user space
+- **Per-mode configuration**: Separate settings for kernel and user space (KESU extension)
 - **Endian switch**: Via special register or privileged instruction
+- **Host endianness detection**: Automatic runtime detection for correct byte swapping
+  - Uses union-based test to detect host byte order
+  - Ensures correct operation on both little-endian and big-endian hosts
+  - Byte swapping only performed when necessary (host ≠ target)
 
 ## 6. Compressed Instructions (16-bit Encoding)
 

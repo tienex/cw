@@ -599,15 +599,48 @@ MmixMemoryDestroy (
 // Endianness conversion functions
 //
 
+/**
+  Detect host endianness at runtime.
+
+  Uses a union to test byte order. This is reliable across all platforms.
+
+  @return  TRUE if host is little-endian, FALSE if big-endian.
+**/
+STATIC
+BOOLEAN
+MmixIsHostLittleEndian (
+  VOID
+  )
+{
+  union {
+    UINT32  Value;
+    UINT8   Bytes[4];
+  } Test;
+
+  Test.Value = 0x01020304;
+
+  //
+  // On little-endian: Bytes[0] = 0x04 (LSB first)
+  // On big-endian:    Bytes[0] = 0x01 (MSB first)
+  //
+  return (Test.Bytes[0] == 0x04);
+}
+
+/**
+  Swap bytes in a value based on size.
+
+  @param[in]  Value  Value to byte-swap.
+  @param[in]  Size   Size in bytes (1, 2, 4, or 8).
+
+  @return  Byte-swapped value.
+**/
+STATIC
 UINT64
-MmixBigEndianToHost (
+MmixSwapBytes (
   IN UINT64  Value,
   IN UINT32  Size
   )
 {
-  //
-  // Simplified - assumes host is little-endian
-  //
   switch (Size) {
     case 1:
       return Value & 0xFF;
@@ -633,12 +666,32 @@ MmixBigEndianToHost (
 }
 
 UINT64
+MmixBigEndianToHost (
+  IN UINT64  Value,
+  IN UINT32  Size
+  )
+{
+  //
+  // If host is big-endian, no conversion needed
+  // If host is little-endian, swap bytes
+  //
+  if (MmixIsHostLittleEndian ()) {
+    return MmixSwapBytes (Value, Size);
+  }
+
+  return Value;
+}
+
+UINT64
 MmixHostToBigEndian (
   IN UINT64  Value,
   IN UINT32  Size
   )
 {
-  return MmixBigEndianToHost (Value, Size);  // Symmetric operation
+  //
+  // Symmetric operation - same logic as big-endian to host
+  //
+  return MmixBigEndianToHost (Value, Size);
 }
 
 UINT64
@@ -648,9 +701,14 @@ MmixLittleEndianToHost (
   )
 {
   //
-  // Assumes host is little-endian - no conversion needed
+  // If host is little-endian, no conversion needed
+  // If host is big-endian, swap bytes
   //
-  return Value;
+  if (MmixIsHostLittleEndian ()) {
+    return Value;
+  }
+
+  return MmixSwapBytes (Value, Size);
 }
 
 UINT64
@@ -659,5 +717,8 @@ MmixHostToLittleEndian (
   IN UINT32  Size
   )
 {
-  return Value;  // No conversion needed
+  //
+  // Symmetric operation - same logic as little-endian to host
+  //
+  return MmixLittleEndianToHost (Value, Size);
 }
