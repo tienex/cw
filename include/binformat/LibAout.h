@@ -2,12 +2,22 @@
   a.out Binary Format Library.
 
   This library provides support for parsing and creating a.out (Assembler Output)
-  binaries and its variants. It implements the unified BINFORMAT_API interface.
+  binaries and its variants including 32-bit, 64-bit, and system-specific formats.
+  It implements the unified BINFORMAT_API interface.
 
   Supported formats:
-  - a.out (traditional Unix)
-  - b.out (early Unix variant)
+  - a.out (traditional Unix - OMAGIC, NMAGIC, ZMAGIC, QMAGIC)
+  - aout64 (64-bit a.out for early 64-bit systems)
+  - PDP-11 a.out (original Unix V6/V7)
+  - b.out (early Unix binary output format)
+  - BSD variants (FreeBSD, OpenBSD, NetBSD, BSDI)
+  - SunOS a.out (with endianness variants)
+  - Linux a.out
   - Plan 9 a.out
+  - bout (Binary Output for Intel i960 and embedded systems)
+  - HP-UX, Ultrix, VAX, MIPS variants
+  - Encore, Apollo, Pyramid, Sequent systems
+  - ARM, Atari TOS, BeOS, QNX variants
 
   Copyright (c) 2025. All rights reserved.
 
