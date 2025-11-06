@@ -23,7 +23,23 @@ COMPILER = $(BIN_DIR)/mmix-cc
 FILECHECK = $(BIN_DIR)/mmix-filecheck
 BINFORMAT_TEST = $(BIN_DIR)/test-binformat
 
-ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER) $(FILECHECK) $(BINFORMAT_TEST)
+# Universal toolchain utilities
+NM = $(BIN_DIR)/nm
+SIZE = $(BIN_DIR)/size
+STRINGS = $(BIN_DIR)/strings
+OBJDUMP_UNIVERSAL = $(BIN_DIR)/objdump
+LDD = $(BIN_DIR)/ldd
+OTOOL = $(BIN_DIR)/otool
+DUMPBIN = $(BIN_DIR)/dumpbin
+LIPO = $(BIN_DIR)/lipo
+REDO_PREBINDING = $(BIN_DIR)/redo_prebinding
+DYLD_STUB = $(BIN_DIR)/dyld
+LIB = $(BIN_DIR)/lib
+LINK = $(BIN_DIR)/link
+
+UNIVERSAL_TOOLS = $(NM) $(SIZE) $(STRINGS) $(OBJDUMP_UNIVERSAL) $(LDD) $(OTOOL) $(DUMPBIN) $(LIPO) $(REDO_PREBINDING) $(DYLD_STUB) $(LIB) $(LINK)
+
+ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER) $(FILECHECK) $(BINFORMAT_TEST) $(UNIVERSAL_TOOLS)
 
 # Common/shared object files
 COMMON_OBJS = \
@@ -103,6 +119,20 @@ COMPILER_OBJS = \
 	$(BUILD_DIR)/compiler/IrGen.o \
 	$(BUILD_DIR)/compiler/CodeGen.o
 
+# Universal toolchain objects
+NM_OBJS = $(BUILD_DIR)/tools/nm.o
+SIZE_OBJS = $(BUILD_DIR)/tools/size.o
+STRINGS_OBJS = $(BUILD_DIR)/tools/strings.o
+OBJDUMP_UNIVERSAL_OBJS = $(BUILD_DIR)/tools/objdump.o
+LDD_OBJS = $(BUILD_DIR)/tools/ldd.o
+OTOOL_OBJS = $(BUILD_DIR)/tools/otool.o
+DUMPBIN_OBJS = $(BUILD_DIR)/tools/dumpbin.o
+LIPO_OBJS = $(BUILD_DIR)/tools/lipo.o
+REDO_PREBINDING_OBJS = $(BUILD_DIR)/tools/redo_prebinding.o
+DYLD_STUB_OBJS = $(BUILD_DIR)/tools/dyld.o
+LIB_OBJS = $(BUILD_DIR)/tools/lib.o
+LINK_OBJS = $(BUILD_DIR)/tools/link.o
+
 # Default target
 all: $(ALL_TARGETS)
 	@echo ""
@@ -116,6 +146,18 @@ all: $(ALL_TARGETS)
 	@echo "  $(COMPILER)"
 	@echo "  $(FILECHECK)"
 	@echo "  $(BINFORMAT_TEST)"
+	@echo ""
+	@echo "Universal toolchain utilities:"
+	@echo "  $(NM)         - Symbol lister"
+	@echo "  $(SIZE)       - Section size display"
+	@echo "  $(STRINGS)    - String extractor"
+	@echo "  $(OBJDUMP_UNIVERSAL)  - Universal object dumper"
+	@echo "  $(LDD)        - Dynamic dependency lister"
+	@echo "  $(OTOOL)      - macOS object tool"
+	@echo "  $(DUMPBIN)    - Windows COFF/PE dumper"
+	@echo "  $(LIPO)       - Universal binary tool"
+	@echo "  $(LIB)        - Windows library manager"
+	@echo "  $(LINK)       - Windows linker"
 
 # Create directories
 $(BUILD_DIR):
@@ -176,6 +218,55 @@ $(FILECHECK): $(FILECHECK_OBJS) | $(BIN_DIR)
 $(BINFORMAT_TEST): $(BINFORMAT_TEST_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
 	$(CC) $(BINFORMAT_TEST_OBJS) $(BINFORMAT_LIB_OBJS) -o $(BINFORMAT_TEST) $(LDFLAGS)
 	@echo "Built: $(BINFORMAT_TEST)"
+
+# Build universal toolchain utilities
+$(NM): $(NM_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(NM_OBJS) $(BINFORMAT_LIB_OBJS) -o $(NM) $(LDFLAGS)
+	@echo "Built: $(NM)"
+
+$(SIZE): $(SIZE_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(SIZE_OBJS) $(BINFORMAT_LIB_OBJS) -o $(SIZE) $(LDFLAGS)
+	@echo "Built: $(SIZE)"
+
+$(STRINGS): $(STRINGS_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(STRINGS_OBJS) $(BINFORMAT_LIB_OBJS) -o $(STRINGS) $(LDFLAGS)
+	@echo "Built: $(STRINGS)"
+
+$(OBJDUMP_UNIVERSAL): $(OBJDUMP_UNIVERSAL_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(OBJDUMP_UNIVERSAL_OBJS) $(BINFORMAT_LIB_OBJS) -o $(OBJDUMP_UNIVERSAL) $(LDFLAGS)
+	@echo "Built: $(OBJDUMP_UNIVERSAL)"
+
+$(LDD): $(LDD_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(LDD_OBJS) $(BINFORMAT_LIB_OBJS) -o $(LDD) $(LDFLAGS)
+	@echo "Built: $(LDD)"
+
+$(OTOOL): $(OTOOL_OBJS) | $(BIN_DIR)
+	$(CC) $(OTOOL_OBJS) -o $(OTOOL) $(LDFLAGS)
+	@echo "Built: $(OTOOL)"
+
+$(DUMPBIN): $(DUMPBIN_OBJS) | $(BIN_DIR)
+	$(CC) $(DUMPBIN_OBJS) -o $(DUMPBIN) $(LDFLAGS)
+	@echo "Built: $(DUMPBIN)"
+
+$(LIPO): $(LIPO_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(LIPO_OBJS) $(BINFORMAT_LIB_OBJS) -o $(LIPO) $(LDFLAGS)
+	@echo "Built: $(LIPO)"
+
+$(REDO_PREBINDING): $(REDO_PREBINDING_OBJS) | $(BIN_DIR)
+	$(CC) $(REDO_PREBINDING_OBJS) -o $(REDO_PREBINDING) $(LDFLAGS)
+	@echo "Built: $(REDO_PREBINDING)"
+
+$(DYLD_STUB): $(DYLD_STUB_OBJS) | $(BIN_DIR)
+	$(CC) $(DYLD_STUB_OBJS) -o $(DYLD_STUB) $(LDFLAGS)
+	@echo "Built: $(DYLD_STUB)"
+
+$(LIB): $(LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(LIB_OBJS) -o $(LIB) $(LDFLAGS)
+	@echo "Built: $(LIB)"
+
+$(LINK): $(LINK_OBJS) | $(BIN_DIR)
+	$(CC) $(LINK_OBJS) -o $(LINK) $(LDFLAGS)
+	@echo "Built: $(LINK)"
 
 # Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
