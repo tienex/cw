@@ -151,12 +151,12 @@ struct _MMIX_CPU_STATE {
   UINT64  SpecialRegisters[64];  // Includes both standard and extended
 
   //
-  // Floating-point registers (F0-F31)
+  // Floating-point registers (F0-F255)
   //
-  MMIX_FP_REGISTER  FpRegisters[32];
+  MMIX_FP_REGISTER  FpRegisters[MMIX_FLOATING_REGISTER_COUNT];
 
   //
-  // Vector registers (V0-V31) for SVE
+  // Vector registers (V0-V255) for SVE
   //
   MMIX_VECTOR_REGISTER  VectorRegisters[MMIX_VECTOR_REGISTER_COUNT];
 

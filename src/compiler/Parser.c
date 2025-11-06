@@ -667,14 +667,33 @@ ParserParseStatement (
     AST_STMT  *Stmt = AstStmtCreate (AST_STMT_COMPOUND, &Tok->Location);
 
     // Parse statements
+    UINT32  Capacity = 16;
+    Stmt->Compound.Statements = (AST_STMT **)malloc (Capacity * sizeof (AST_STMT *));
     Stmt->Compound.StatementCount = 0;
-    Stmt->Compound.Statements = NULL;
+
+    if (Stmt->Compound.Statements == NULL) {
+      return NULL;
+    }
 
     while (!ParserExpect (Parser, TOK_RBRACE) && !ParserExpect (Parser, TOK_EOF)) {
       AST_STMT  *SubStmt = ParserParseStatement (Parser);
       if (SubStmt != NULL) {
-        // Add to list (simplified)
-        Stmt->Compound.StatementCount++;
+        // Grow array if needed
+        if (Stmt->Compound.StatementCount >= Capacity) {
+          Capacity *= 2;
+          AST_STMT  **NewStmts = (AST_STMT **)realloc (
+            Stmt->Compound.Statements,
+            Capacity * sizeof (AST_STMT *)
+          );
+          if (NewStmts == NULL) {
+            free (Stmt->Compound.Statements);
+            return NULL;
+          }
+          Stmt->Compound.Statements = NewStmts;
+        }
+
+        // Add statement to array
+        Stmt->Compound.Statements[Stmt->Compound.StatementCount++] = SubStmt;
       } else {
         break;
       }

@@ -44,6 +44,7 @@ EMULATOR_SOURCES = \
 	$(SRC_DIR)/memory/Memory.c \
 	$(SRC_DIR)/memory/PageTable.c \
 	$(SRC_DIR)/fpu/Fpu.c \
+	$(SRC_DIR)/ml/Ml.c \
 	$(SRC_DIR)/devices/Devices.c
 
 EMULATOR_OBJS = $(EMULATOR_SOURCES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)

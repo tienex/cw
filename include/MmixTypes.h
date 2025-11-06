@@ -30,6 +30,8 @@ typedef int8_t    INT8;
 typedef int16_t   INT16;
 typedef int32_t   INT32;
 typedef int64_t   INT64;
+typedef float     FLOAT32;
+typedef double    FLOAT64;
 typedef bool      BOOLEAN;
 typedef void      VOID;
 typedef char      CHAR8;
@@ -81,6 +83,7 @@ typedef UINT64 MMIX_STATUS;
 #define MMIX_ERROR_ABORTED              0x8000000000000009ULL
 #define MMIX_ERROR_ACCESS_DENIED        0x800000000000000AULL
 #define MMIX_ERROR_BUFFER_TOO_SMALL     0x800000000000000BULL
+#define MMIX_ERROR_NOT_IMPLEMENTED      0x800000000000000CULL
 
 #define MMIX_IS_ERROR(Status)  ((Status) & 0x8000000000000000ULL)
 
@@ -90,7 +93,8 @@ typedef UINT64 MMIX_STATUS;
 
 #define MMIX_GENERAL_REGISTER_COUNT     256
 #define MMIX_SPECIAL_REGISTER_COUNT     32
-#define MMIX_VECTOR_REGISTER_COUNT      32
+#define MMIX_FLOATING_REGISTER_COUNT    256
+#define MMIX_VECTOR_REGISTER_COUNT      256
 #define MMIX_PREDICATE_REGISTER_COUNT   16
 #define MMIX_MATRIX_TILE_COUNT          8
 

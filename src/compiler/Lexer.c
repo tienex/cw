@@ -593,6 +593,148 @@ LexerNextToken (
       Token = TokenCreate (TOK_COMMA, &Location, ",", 1);
       break;
 
+    case '*':
+      if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_STAR_EQUAL, &Location, "*=", 2);
+      } else {
+        Token = TokenCreate (TOK_STAR, &Location, "*", 1);
+      }
+      break;
+
+    case '/':
+      if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_SLASH_EQUAL, &Location, "/=", 2);
+      } else {
+        Token = TokenCreate (TOK_SLASH, &Location, "/", 1);
+      }
+      break;
+
+    case '%':
+      if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_PERCENT_EQUAL, &Location, "%=", 2);
+      } else {
+        Token = TokenCreate (TOK_PERCENT, &Location, "%", 1);
+      }
+      break;
+
+    case '<':
+      if (Lexer->CurrentChar == '<') {
+        LexerAdvance (Lexer);
+        if (Lexer->CurrentChar == '=') {
+          LexerAdvance (Lexer);
+          Token = TokenCreate (TOK_SHIFT_LEFT_EQUAL, &Location, "<<=", 3);
+        } else {
+          Token = TokenCreate (TOK_SHIFT_LEFT, &Location, "<<", 2);
+        }
+      } else if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_LESS_EQUAL, &Location, "<=", 2);
+      } else {
+        Token = TokenCreate (TOK_LESS, &Location, "<", 1);
+      }
+      break;
+
+    case '>':
+      if (Lexer->CurrentChar == '>') {
+        LexerAdvance (Lexer);
+        if (Lexer->CurrentChar == '=') {
+          LexerAdvance (Lexer);
+          Token = TokenCreate (TOK_SHIFT_RIGHT_EQUAL, &Location, ">>=", 3);
+        } else {
+          Token = TokenCreate (TOK_SHIFT_RIGHT, &Location, ">>", 2);
+        }
+      } else if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_GREATER_EQUAL, &Location, ">=", 2);
+      } else {
+        Token = TokenCreate (TOK_GREATER, &Location, ">", 1);
+      }
+      break;
+
+    case '=':
+      if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_EQUAL_EQUAL, &Location, "==", 2);
+      } else {
+        Token = TokenCreate (TOK_EQUAL, &Location, "=", 1);
+      }
+      break;
+
+    case '!':
+      if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_NOT_EQUAL, &Location, "!=", 2);
+      } else {
+        Token = TokenCreate (TOK_EXCLAIM, &Location, "!", 1);
+      }
+      break;
+
+    case '&':
+      if (Lexer->CurrentChar == '&') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_LOGICAL_AND, &Location, "&&", 2);
+      } else if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_AMPERSAND_EQUAL, &Location, "&=", 2);
+      } else {
+        Token = TokenCreate (TOK_AMPERSAND, &Location, "&", 1);
+      }
+      break;
+
+    case '|':
+      if (Lexer->CurrentChar == '|') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_LOGICAL_OR, &Location, "||", 2);
+      } else if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_PIPE_EQUAL, &Location, "|=", 2);
+      } else {
+        Token = TokenCreate (TOK_PIPE, &Location, "|", 1);
+      }
+      break;
+
+    case '^':
+      if (Lexer->CurrentChar == '=') {
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_CARET_EQUAL, &Location, "^=", 2);
+      } else {
+        Token = TokenCreate (TOK_CARET, &Location, "^", 1);
+      }
+      break;
+
+    case '~':
+      Token = TokenCreate (TOK_TILDE, &Location, "~", 1);
+      break;
+
+    case '?':
+      Token = TokenCreate (TOK_QUESTION, &Location, "?", 1);
+      break;
+
+    case ':':
+      Token = TokenCreate (TOK_COLON, &Location, ":", 1);
+      break;
+
+    case '.':
+      if (Lexer->CurrentChar == '.' && LexerPeekChar (Lexer, 1) == '.') {
+        LexerAdvance (Lexer);
+        LexerAdvance (Lexer);
+        Token = TokenCreate (TOK_ELLIPSIS, &Location, "...", 3);
+      } else {
+        Token = TokenCreate (TOK_DOT, &Location, ".", 1);
+      }
+      break;
+
+    case '[':
+      Token = TokenCreate (TOK_LBRACKET, &Location, "[", 1);
+      break;
+
+    case ']':
+      Token = TokenCreate (TOK_RBRACKET, &Location, "]", 1);
+      break;
+
     default:
       Token = TokenCreate (TOK_ERROR, &Location, &Ch, 1);
       LexerError (Lexer, "Unexpected character");

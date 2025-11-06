@@ -1,0 +1,3 @@
+run test_simple.c -o test_simple.s
+bt
+quit
