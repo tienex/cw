@@ -344,6 +344,10 @@ ParsePrimaryExpression (
   }
 
   ParserError (Parser, "Expected expression");
+  //
+  // Advance past the unexpected token to avoid infinite loop
+  //
+  ParserAdvance (Parser);
   return NULL;
 }
 
