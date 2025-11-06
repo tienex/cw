@@ -15,6 +15,8 @@
   - HP SOM32/64 (System Object Module)
   - Acorn RISC OS executable and object formats
   - EPOC32/Symbian OBJ and EXE formats
+  - MMIX MMO (MMIX Object format)
+  - NetWare NLM (NetWare Loadable Module)
 
   Note: Excludes formats already provided by other libraries (ELF, COFF,
   a.out, Mach-O, OMF variants).
@@ -87,6 +89,60 @@
 ///
 #define EPOC_UID1             0x10000079  ///< EPOC executable UID1
 #define EPOC_UID_E32          0x1000007A  ///< E32 image UID
+
+///
+/// MMIX MMO (MMIX Object format) magic
+/// Used by the MMIX architecture designed by Donald Knuth
+///
+#define MMO_MAGIC             0x98080901  ///< MMO magic (MMIX object)
+#define MMO_VERSION           1           ///< Current MMO version
+
+///
+/// MMIX MMO location (lop) codes
+///
+#define MMO_LOP_QUOTE         0x98000001  ///< Quote next tetrabyte literally
+#define MMO_LOP_LOC           0x98000002  ///< Set location
+#define MMO_LOP_SKIP          0x98000003  ///< Skip forward
+#define MMO_LOP_FIXO          0x98000004  ///< Fixup forward
+#define MMO_LOP_FIXR          0x98000005  ///< Fixup backward
+#define MMO_LOP_FIXRX         0x98000006  ///< Fixup backward relaxed
+#define MMO_LOP_FILE          0x98000007  ///< File name follows
+#define MMO_LOP_LINE          0x98000008  ///< Line number follows
+#define MMO_LOP_SPEC          0x98000009  ///< Special register
+#define MMO_LOP_PRE           0x980A0000  ///< Preamble
+#define MMO_LOP_POST          0x98100000  ///< Postamble
+#define MMO_LOP_STAB          0x980B0000  ///< Symbol table
+
+///
+/// NetWare Loadable Module (NLM) magic
+/// Used by Novell NetWare operating system
+///
+#define NLM_SIGNATURE         0x0000564C4D  ///< "VLM" signature (preceded by version)
+#define NLM_VERSION_1         0x00        ///< Original NLM format
+#define NLM_VERSION_ADVANCED  0x01        ///< Advanced NLM format
+
+///
+/// NLM module types
+///
+#define NLM_TYPE_LAN_DRIVER   0x00        ///< LAN driver
+#define NLM_TYPE_DISK_DRIVER  0x01        ///< Disk driver
+#define NLM_TYPE_NAME_SPACE   0x02        ///< Name space support
+#define NLM_TYPE_UTILITY      0x03        ///< Utility module
+#define NLM_TYPE_MSL          0x04        ///< Mirrored server link
+#define NLM_TYPE_OS           0x05        ///< Operating system module
+#define NLM_TYPE_PAGED        0x06        ///< Paged module
+#define NLM_TYPE_HAM          0x07        ///< Hardware abstraction module
+#define NLM_TYPE_CDM          0x08        ///< Custom device module
+#define NLM_TYPE_FILE_SYSTEM  0x09        ///< File system module
+#define NLM_TYPE_REAL_MODE    0x0A        ///< Real-mode module
+#define NLM_TYPE_HIDDEN       0x0B        ///< Hidden module
+
+///
+/// NLM CPU types
+///
+#define NLM_CPU_I386          0x00        ///< Intel 386 and above
+#define NLM_CPU_I486          0x01        ///< Intel 486 and above
+#define NLM_CPU_PENTIUM       0x02        ///< Intel Pentium
 
 ///
 /// Get the ORF (Obscure/Rare Formats) library API table.
