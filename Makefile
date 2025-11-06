@@ -21,8 +21,9 @@ OBJDUMP = $(BIN_DIR)/mmix-objdump
 LIBRARIAN = $(BIN_DIR)/mmix-ar
 COMPILER = $(BIN_DIR)/mmix-cc
 FILECHECK = $(BIN_DIR)/mmix-filecheck
+BINFORMAT_TEST = $(BIN_DIR)/test-binformat
 
-ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER) $(FILECHECK)
+ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER) $(FILECHECK) $(BINFORMAT_TEST)
 
 # Common/shared object files
 COMMON_OBJS = \
@@ -31,6 +32,14 @@ COMMON_OBJS = \
 	$(BUILD_DIR)/loader/MachoLoader.o \
 	$(BUILD_DIR)/loader/PeLoader.o \
 	$(BUILD_DIR)/loader/MmoLoader.o
+
+# Binary format library objects
+BINFORMAT_LIB_OBJS = \
+	$(BUILD_DIR)/binformat/LibElf.o \
+	$(BUILD_DIR)/binformat/LibCoff.o \
+	$(BUILD_DIR)/binformat/LibAout.o \
+	$(BUILD_DIR)/binformat/LibMacho.o \
+	$(BUILD_DIR)/binformat/LibOmf.o
 
 DISASM_OBJS = \
 	$(BUILD_DIR)/tools/Disassembler.o
@@ -76,6 +85,12 @@ LIBRARIAN_OBJS = \
 FILECHECK_OBJS = \
 	$(BUILD_DIR)/tools/FileCheck.o
 
+# Binary format test objects
+BINFORMAT_TEST_SOURCES = \
+	tests/binformat/test_binformat.c
+
+BINFORMAT_TEST_OBJS = $(BINFORMAT_TEST_SOURCES:%.c=$(BUILD_DIR)/%.o)
+
 # Compiler objects
 COMPILER_OBJS = \
 	$(BUILD_DIR)/compiler/Token.o \
@@ -98,6 +113,7 @@ all: $(ALL_TARGETS)
 	@echo "  $(LIBRARIAN)"
 	@echo "  $(COMPILER)"
 	@echo "  $(FILECHECK)"
+	@echo "  $(BINFORMAT_TEST)"
 
 # Create directories
 $(BUILD_DIR):
@@ -113,6 +129,8 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)/tools
 	mkdir -p $(BUILD_DIR)/debug
 	mkdir -p $(BUILD_DIR)/compiler
+	mkdir -p $(BUILD_DIR)/binformat
+	mkdir -p $(BUILD_DIR)/tests/binformat
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
@@ -152,8 +170,19 @@ $(FILECHECK): $(FILECHECK_OBJS) | $(BIN_DIR)
 	$(CC) $(FILECHECK_OBJS) -o $(FILECHECK) $(LDFLAGS)
 	@echo "Built: $(FILECHECK)"
 
+# Build binary format test
+$(BINFORMAT_TEST): $(BINFORMAT_TEST_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(BINFORMAT_TEST_OBJS) $(BINFORMAT_LIB_OBJS) -o $(BINFORMAT_TEST) $(LDFLAGS)
+	@echo "Built: $(BINFORMAT_TEST)"
+
 # Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+	@echo "Compiled: $<"
+
+# Compile test files
+$(BUILD_DIR)/tests/%.o: tests/%.c | $(BUILD_DIR)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 	@echo "Compiled: $<"
@@ -178,6 +207,11 @@ emulator: $(EMULATOR)
 toolchain: $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN)
 	@echo ""
 	@echo "=== MMIX Toolchain Build Complete ==="
+
+# Build just binary format libraries
+binformat: $(BINFORMAT_TEST)
+	@echo ""
+	@echo "=== Binary Format Libraries Build Complete ==="
 
 # Run tests
 test: all
@@ -211,6 +245,7 @@ help:
 	@echo "  all       - Build everything (default)"
 	@echo "  emulator  - Build just the emulator"
 	@echo "  toolchain - Build just the toolchain utilities"
+	@echo "  binformat - Build binary format libraries and tests"
 	@echo "  clean     - Remove build artifacts"
 	@echo "  debug     - Build with debug symbols"
 	@echo "  release   - Build optimized release version"
@@ -225,4 +260,4 @@ help:
 	@echo "  mmix-objdump  - Object file inspector"
 	@echo "  mmix-ar       - Archive/library manager"
 
-.PHONY: all clean debug release test install help emulator toolchain
+.PHONY: all clean debug release test install help emulator toolchain binformat
