@@ -1244,6 +1244,81 @@ IrGenUnaryExpr (
 }
 
 /**
+  Compute the size in bytes of a type.
+
+  @param[in]      Type          Type to compute size of.
+
+  @return  Size in bytes, or 0 if unknown.
+
+**/
+STATIC
+UINT32
+IrGetTypeSize (
+  IN  AST_TYPE  *Type
+  )
+{
+  if (Type == NULL) {
+    return 0;
+  }
+
+  switch (Type->Kind) {
+    case AST_TYPE_VOID:
+      return 0;
+
+    case AST_TYPE_BOOL:
+    case AST_TYPE_CHAR:
+    case AST_TYPE_UCHAR:
+    case AST_TYPE_INT8:
+      return 1;
+
+    case AST_TYPE_SHORT:
+    case AST_TYPE_USHORT:
+    case AST_TYPE_INT16:
+      return 2;
+
+    case AST_TYPE_INT:
+    case AST_TYPE_UINT:
+    case AST_TYPE_INT32:
+    case AST_TYPE_FLOAT:
+      return 4;
+
+    case AST_TYPE_LONG:
+    case AST_TYPE_ULONG:
+    case AST_TYPE_LONG_LONG:
+    case AST_TYPE_ULONG_LONG:
+    case AST_TYPE_INT64:
+    case AST_TYPE_DOUBLE:
+    case AST_TYPE_POINTER:
+      return 8;
+
+    case AST_TYPE_LONG_DOUBLE:
+    case AST_TYPE_INT128:
+      return 16;
+
+    case AST_TYPE_ARRAY:
+      {
+        UINT32  ElementSize = IrGetTypeSize (Type->Array.ElementType);
+        if (Type->Array.Size != NULL && Type->Array.Size->Kind == AST_EXPR_INTEGER) {
+          return ElementSize * Type->Array.Size->Integer.Value;
+        }
+        return 0;  // Unknown size array
+      }
+
+    case AST_TYPE_STRUCT:
+    case AST_TYPE_UNION:
+      // TODO: Compute struct/union size from members
+      return 8;  // Placeholder
+
+    case AST_TYPE_BITINT:
+      // _BitInt(N) - round up to nearest byte
+      return (Type->BitInt.Width + 7) / 8;
+
+    default:
+      return 0;
+  }
+}
+
+/**
   Generate IR for expression.
 
   @param[in,out]  Context       IR context.
@@ -1423,6 +1498,79 @@ IrGenExpression (
         Instr->Args[0] = BitCount;
         Instr->ArgCount = 1;
         IrAppendInstruction (Context->CurrentBlock, Instr);
+      }
+      break;
+
+    case AST_EXPR_SIZEOF:
+      {
+        //
+        // sizeof operator - compute size at compile time
+        //
+        UINT32     Size;
+        AST_TYPE   *TargetType = NULL;
+        IR_SYMBOL  *Sym;
+
+        if (Expr->Sizeof.TargetType != NULL) {
+          //
+          // sizeof(type)
+          //
+          TargetType = Expr->Sizeof.TargetType;
+        } else if (Expr->Sizeof.Operand != NULL) {
+          //
+          // sizeof expr - need to determine the expression's type
+          //
+          AST_EXPR  *Operand = Expr->Sizeof.Operand;
+
+          if (Operand->Type != NULL) {
+            //
+            // Type already set (from semantic analysis)
+            //
+            TargetType = Operand->Type;
+          } else if (Operand->Kind == AST_EXPR_IDENTIFIER) {
+            //
+            // Identifier - look up its type in symbol table
+            //
+            if (Context->CurrentFunc != NULL && Context->CurrentFunc->Symbols != NULL) {
+              Sym = IrLookupSymbol (Context->CurrentFunc->Symbols, Operand->Identifier.Name);
+              if (Sym != NULL && Sym->Type != NULL) {
+                TargetType = Sym->Type;
+              }
+            }
+          } else if (Operand->Kind == AST_EXPR_INTEGER) {
+            //
+            // Integer literal - default to int type (4 bytes)
+            //
+            AST_TYPE  *IntType = AstTypeCreate (AST_TYPE_INT);
+            TargetType = IntType;
+          } else if (Operand->Kind == AST_EXPR_BINARY || Operand->Kind == AST_EXPR_UNARY) {
+            //
+            // Binary/unary expression - infer type from the expression
+            // For now, assume int type (most arithmetic operations result in int)
+            // TODO: Proper type inference
+            //
+            AST_TYPE  *IntType = AstTypeCreate (AST_TYPE_INT);
+            TargetType = IntType;
+          } else {
+            //
+            // For other expressions, try to use existing type
+            //
+            TargetType = Operand->Type;
+          }
+        }
+
+        if (TargetType == NULL) {
+          //
+          // Could not determine type - return 0
+          //
+          return IrConstant (0, Expr->Type, 0);
+        }
+
+        Size = IrGetTypeSize (TargetType);
+
+        //
+        // Return size as a constant
+        //
+        return IrConstant (Size, Expr->Type, 0);
       }
       break;
 

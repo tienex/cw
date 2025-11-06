@@ -630,9 +630,63 @@ ParseUnaryExpression (
   // sizeof operator
   //
   if (Tok->Type == TOK_SIZEOF) {
+    TOKEN_LOCATION  Location = Tok->Location;
     ParserAdvance (Parser);
-    AST_EXPR  *Expr = AstExprCreate (AST_EXPR_SIZEOF, &Tok->Location);
-    // TODO: Parse sizeof operand (type or expression)
+
+    AST_EXPR  *Expr = AstExprCreate (AST_EXPR_SIZEOF, &Location);
+    if (Expr == NULL) {
+      return NULL;
+    }
+
+    //
+    // Check if it's sizeof(type) or sizeof expr
+    // If next token is '(', consume it and check what follows
+    //
+    if (Parser->CurrentToken->Type == TOK_LPAREN) {
+      ParserAdvance (Parser);  // Consume '('
+
+      //
+      // Check if this looks like a type name
+      //
+      if (Parser->CurrentToken->Type == TOK_VOID ||
+          Parser->CurrentToken->Type == TOK_CHAR ||
+          Parser->CurrentToken->Type == TOK_SHORT ||
+          Parser->CurrentToken->Type == TOK_INT ||
+          Parser->CurrentToken->Type == TOK_LONG ||
+          Parser->CurrentToken->Type == TOK_FLOAT ||
+          Parser->CurrentToken->Type == TOK_DOUBLE ||
+          Parser->CurrentToken->Type == TOK_SIGNED ||
+          Parser->CurrentToken->Type == TOK_UNSIGNED ||
+          Parser->CurrentToken->Type == TOK_STRUCT ||
+          Parser->CurrentToken->Type == TOK_UNION ||
+          Parser->CurrentToken->Type == TOK_ENUM ||
+          Parser->CurrentToken->Type == TOK_BOOL ||
+          Parser->CurrentToken->Type == TOK_CONST ||
+          Parser->CurrentToken->Type == TOK_VOLATILE ||
+          Parser->CurrentToken->Type == TOK_RESTRICT ||
+          Parser->CurrentToken->Type == TOK_ATOMIC) {
+        //
+        // sizeof(type)
+        //
+        Expr->Sizeof.TargetType = ParserParseType (Parser);
+        Expr->Sizeof.Operand = NULL;
+        ParserConsume (Parser, TOK_RPAREN);
+      } else {
+        //
+        // sizeof(expr) - parse the expression inside parentheses
+        //
+        Expr->Sizeof.TargetType = NULL;
+        Expr->Sizeof.Operand = ParserParseExpression (Parser);
+        ParserConsume (Parser, TOK_RPAREN);
+      }
+    } else {
+      //
+      // sizeof expr (no parentheses)
+      //
+      Expr->Sizeof.TargetType = NULL;
+      Expr->Sizeof.Operand = ParseUnaryExpression (Parser);
+    }
+
     return Expr;
   }
 
