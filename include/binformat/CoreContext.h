@@ -21,6 +21,22 @@
 #include "BinFormat.h"
 
 ///
+/// Alignment macro for structures
+/// For GCC, use after struct/union keyword: typedef struct ALIGNED_STRUCT(16) _Name { ... } Name;
+/// For MSVC, use before struct: typedef ALIGNED_STRUCT(16) struct _Name { ... } Name;
+///
+#if defined(__GNUC__)
+  #define ALIGNED_STRUCT(x)  __attribute__((aligned(x)))
+  #define DECLSPEC_ALIGN(x)  __attribute__((aligned(x)))
+#elif defined(_MSC_VER)
+  #define ALIGNED_STRUCT(x)  __declspec(align(x))
+  #define DECLSPEC_ALIGN(x)  __declspec(align(x))
+#else
+  #define ALIGNED_STRUCT(x)
+  #define DECLSPEC_ALIGN(x)
+#endif
+
+///
 /// Context flag bit definitions for specifying which register groups are valid
 ///
 
@@ -167,7 +183,7 @@
 ///
 /// Helper structure for 128-bit values (XMM, vector registers)
 ///
-typedef struct DECLSPEC_ALIGN(16) _M128A {
+typedef struct _M128A {
   UINT64  Low;
   INT64   High;
 } M128A, *PM128A;
@@ -189,7 +205,7 @@ typedef union _ARM_NEON128 {
 ///
 /// Helper structure for 128-bit NEON registers (ARM64)
 ///
-typedef union DECLSPEC_ALIGN(16) _ARM64_NT_NEON128 {
+typedef union ALIGNED_STRUCT(16) _ARM64_NT_NEON128 {
   struct {
     UINT64  Low;
     INT64   High;
@@ -218,7 +234,7 @@ typedef struct _I386_FLOATING_SAVE_AREA {
 ///
 /// AMD64 (x64) XMM save area
 ///
-typedef struct DECLSPEC_ALIGN(16) _XMM_SAVE_AREA32 {
+typedef struct ALIGNED_STRUCT(16) _XMM_SAVE_AREA32 {
   UINT16   ControlWord;
   UINT16   StatusWord;
   UINT8    TagWord;
@@ -298,7 +314,7 @@ typedef struct _I386_CONTEXT {
 ///
 /// AMD64 (x64) CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(16) _AMD64_CONTEXT {
+typedef struct ALIGNED_STRUCT(16) _AMD64_CONTEXT {
   //
   // Parameter home addresses (for non-volatile registers)
   //
@@ -385,7 +401,7 @@ typedef struct DECLSPEC_ALIGN(16) _AMD64_CONTEXT {
 ///
 /// ARM (32-bit) CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(8) _ARM_CONTEXT {
+typedef struct ALIGNED_STRUCT(8) _ARM_CONTEXT {
   //
   // Context flags
   //
@@ -444,7 +460,7 @@ typedef struct DECLSPEC_ALIGN(8) _ARM_CONTEXT {
 ///
 /// ARM64 (AArch64) CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(16) _ARM64_NT_CONTEXT {
+typedef struct ALIGNED_STRUCT(16) _ARM64_NT_CONTEXT {
   //
   // Context flags
   //
@@ -515,7 +531,7 @@ typedef struct DECLSPEC_ALIGN(16) _ARM64_NT_CONTEXT {
 ///
 /// RISC-V 32-bit CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(4) _RISCV32_CONTEXT {
+typedef struct ALIGNED_STRUCT(4) _RISCV32_CONTEXT {
   //
   // Context flags
   //
@@ -565,7 +581,7 @@ typedef struct DECLSPEC_ALIGN(4) _RISCV32_CONTEXT {
   //
   // Floating-point registers (F0-F31) - RV32F/D
   //
-  UINT32  F[32];
+  UINT32  FloatReg[32];
 
   //
   // Floating-point control and status register
@@ -583,7 +599,7 @@ typedef struct DECLSPEC_ALIGN(4) _RISCV32_CONTEXT {
 ///
 /// RISC-V 64-bit CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(8) _RISCV64_CONTEXT {
+typedef struct ALIGNED_STRUCT(8) _RISCV64_CONTEXT {
   //
   // Context flags
   //
@@ -634,7 +650,7 @@ typedef struct DECLSPEC_ALIGN(8) _RISCV64_CONTEXT {
   //
   // Floating-point registers (F0-F31) - RV64F/D
   //
-  UINT64  F[32];
+  UINT64  FloatReg[32];
 
   //
   // Floating-point control and status register
@@ -653,7 +669,7 @@ typedef struct DECLSPEC_ALIGN(8) _RISCV64_CONTEXT {
 ///
 /// MIPS 32-bit CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(4) _MIPS32_CONTEXT {
+typedef struct ALIGNED_STRUCT(4) _MIPS32_CONTEXT {
   //
   // Context flags
   //
@@ -706,7 +722,7 @@ typedef struct DECLSPEC_ALIGN(4) _MIPS32_CONTEXT {
   //
   // Floating-point registers (F0-F31)
   //
-  UINT32  F[32];
+  UINT32  FloatReg[32];
 
   //
   // Floating-point control and status register
@@ -729,7 +745,7 @@ typedef struct DECLSPEC_ALIGN(4) _MIPS32_CONTEXT {
 ///
 /// MIPS 64-bit CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(8) _MIPS64_CONTEXT {
+typedef struct ALIGNED_STRUCT(8) _MIPS64_CONTEXT {
   //
   // Context flags
   //
@@ -783,7 +799,7 @@ typedef struct DECLSPEC_ALIGN(8) _MIPS64_CONTEXT {
   //
   // Floating-point registers (F0-F31)
   //
-  UINT64  F[32];
+  UINT64  FloatReg[32];
 
   //
   // Floating-point control and status register
@@ -807,7 +823,7 @@ typedef struct DECLSPEC_ALIGN(8) _MIPS64_CONTEXT {
 ///
 /// PowerPC 32-bit CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(4) _PPC32_CONTEXT {
+typedef struct ALIGNED_STRUCT(4) _PPC32_CONTEXT {
   //
   // Context flags
   //
@@ -862,7 +878,7 @@ typedef struct DECLSPEC_ALIGN(4) _PPC32_CONTEXT {
   //
   // Floating-point registers (F0-F31)
   //
-  FLOAT64  F[32];
+  FLOAT64  FloatReg[32];
 
   //
   // Floating-point status and control register
@@ -890,7 +906,7 @@ typedef struct DECLSPEC_ALIGN(4) _PPC32_CONTEXT {
 ///
 /// PowerPC 64-bit CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(8) _PPC64_CONTEXT {
+typedef struct ALIGNED_STRUCT(8) _PPC64_CONTEXT {
   //
   // Context flags
   //
@@ -946,7 +962,7 @@ typedef struct DECLSPEC_ALIGN(8) _PPC64_CONTEXT {
   //
   // Floating-point registers (F0-F31)
   //
-  FLOAT64  F[32];
+  FLOAT64  FloatReg[32];
 
   //
   // Floating-point status and control register
@@ -979,7 +995,7 @@ typedef struct DECLSPEC_ALIGN(8) _PPC64_CONTEXT {
 ///
 /// SPARC 32-bit CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(4) _SPARC32_CONTEXT {
+typedef struct ALIGNED_STRUCT(4) _SPARC32_CONTEXT {
   //
   // Context flags
   //
@@ -1046,7 +1062,7 @@ typedef struct DECLSPEC_ALIGN(4) _SPARC32_CONTEXT {
   //
   // Floating-point registers (F0-F31)
   //
-  UINT32  F[32];
+  UINT32  FloatReg[32];
 
   //
   // Floating-point status register
@@ -1057,7 +1073,7 @@ typedef struct DECLSPEC_ALIGN(4) _SPARC32_CONTEXT {
 ///
 /// SPARC 64-bit CONTEXT structure
 ///
-typedef struct DECLSPEC_ALIGN(8) _SPARC64_CONTEXT {
+typedef struct ALIGNED_STRUCT(8) _SPARC64_CONTEXT {
   //
   // Context flags
   //

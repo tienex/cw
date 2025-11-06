@@ -40,7 +40,8 @@ BINFORMAT_LIB_OBJS = \
 	$(BUILD_DIR)/binformat/LibAout.o \
 	$(BUILD_DIR)/binformat/LibMacho.o \
 	$(BUILD_DIR)/binformat/LibOmf.o \
-	$(BUILD_DIR)/binformat/LibOrf.o
+	$(BUILD_DIR)/binformat/LibOrf.o \
+	$(BUILD_DIR)/binformat/LibMinidump.o
 
 DISASM_OBJS = \
 	$(BUILD_DIR)/tools/Disassembler.o
