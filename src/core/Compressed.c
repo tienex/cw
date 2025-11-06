@@ -295,7 +295,7 @@ ExecuteCompressedLoad (
   //
   // Handle endianness
   //
-  if (CpuState->EndiannessMode == MmixEndianLittle) {
+  if (MmixCpuGetEndianness (CpuState) == MmixEndianLittle) {
     LoadedValue = MmixLittleEndianToHost (LoadedValue, Size);
   } else {
     LoadedValue = MmixBigEndianToHost (LoadedValue, Size);
@@ -385,7 +385,7 @@ ExecuteCompressedStore (
   //
   // Handle endianness
   //
-  if (CpuState->EndiannessMode == MmixEndianLittle) {
+  if (MmixCpuGetEndianness (CpuState) == MmixEndianLittle) {
     StoreValue = MmixHostToLittleEndian (StoreValue, Size);
   } else {
     StoreValue = MmixHostToBigEndian (StoreValue, Size);

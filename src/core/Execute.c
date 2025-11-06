@@ -202,7 +202,7 @@ MmixCpuFetchInstruction (
   //
   // Convert endianness if needed
   //
-  if (CpuState->EndiannessMode == MmixEndianLittle) {
+  if (MmixCpuGetEndianness (CpuState) == MmixEndianLittle) {
     FirstHalf = (UINT16)MmixLittleEndianToHost (FirstHalf, sizeof (UINT16));
   } else {
     FirstHalf = (UINT16)MmixBigEndianToHost (FirstHalf, sizeof (UINT16));
@@ -240,7 +240,7 @@ MmixCpuFetchInstruction (
   //
   // Convert endianness
   //
-  if (CpuState->EndiannessMode == MmixEndianLittle) {
+  if (MmixCpuGetEndianness (CpuState) == MmixEndianLittle) {
     FullInstruction = (UINT32)MmixLittleEndianToHost (FullInstruction, sizeof (UINT32));
   } else {
     FullInstruction = (UINT32)MmixBigEndianToHost (FullInstruction, sizeof (UINT32));
@@ -455,7 +455,7 @@ ExecuteLoad (
   //
   // Handle endianness
   //
-  if (CpuState->EndiannessMode == MmixEndianLittle) {
+  if (MmixCpuGetEndianness (CpuState) == MmixEndianLittle) {
     LoadedValue = MmixLittleEndianToHost (LoadedValue, Size);
   } else {
     LoadedValue = MmixBigEndianToHost (LoadedValue, Size);
@@ -560,7 +560,7 @@ ExecuteStore (
   // Handle endianness
   //
   StoreValue = XValue;
-  if (CpuState->EndiannessMode == MmixEndianLittle) {
+  if (MmixCpuGetEndianness (CpuState) == MmixEndianLittle) {
     StoreValue = MmixHostToLittleEndian (StoreValue, Size);
   } else {
     StoreValue = MmixHostToBigEndian (StoreValue, Size);

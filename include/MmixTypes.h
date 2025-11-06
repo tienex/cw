@@ -156,14 +156,18 @@ typedef enum {
 } MMIX_EXTENDED_SPECIAL_REGISTER;
 
 //
-// Privilege levels
+// Privilege levels - KESU 4-ring model (VMS-style)
 //
 
 typedef enum {
-  MmixPrivilegeUser = 0,        ///< User mode (least privileged)
-  MmixPrivilegeSupervisor = 1,  ///< Supervisor/kernel mode
-  MmixPrivilegeHypervisor = 2   ///< Hypervisor mode (most privileged)
+  MmixPrivilegeUser = 3,        ///< Ring 3: User mode (least privileged)
+  MmixPrivilegeSupervisor = 2,  ///< Ring 2: Supervisor mode
+  MmixPrivilegeExecutive = 1,   ///< Ring 1: Executive mode (VMS outer executive)
+  MmixPrivilegeKernel = 0,      ///< Ring 0: Kernel mode (most privileged)
+  MmixPrivilegeHypervisor = 4   ///< Hypervisor mode (outside ring model, optional)
 } MMIX_PRIVILEGE_LEVEL;
+
+#define MMIX_RING_COUNT  4  ///< Number of protection rings (K, E, S, U)
 
 //
 // Endianness modes
@@ -173,6 +177,54 @@ typedef enum {
   MmixEndianBig = 0,    ///< Big-endian (MMIX traditional)
   MmixEndianLittle = 1  ///< Little-endian (modern systems)
 } MMIX_ENDIAN_MODE;
+
+//
+// Stack growth direction
+//
+
+typedef enum {
+  MmixStackGrowsDown = 0,  ///< Stack grows toward lower addresses (x86-style)
+  MmixStackGrowsUp = 1     ///< Stack grows toward higher addresses (PA-RISC style)
+} MMIX_STACK_DIRECTION;
+
+//
+// Per-ring configuration structure
+//
+
+/**
+  Configuration for each protection ring.
+
+  Each ring can have independent settings for endianness,
+  stack growth direction, and page table base. This enables
+  VMS-style operating system architectures with different
+  execution environments per privilege level.
+**/
+typedef struct {
+  ///
+  /// Endianness mode for this ring
+  ///
+  MMIX_ENDIAN_MODE  EndiannessMode;
+
+  ///
+  /// Stack growth direction for this ring
+  ///
+  MMIX_STACK_DIRECTION  StackDirection;
+
+  ///
+  /// Page table base physical address for this ring
+  ///
+  UINT64  PageTableBase;
+
+  ///
+  /// Stack pointer for this ring (saved on ring transitions)
+  ///
+  UINT64  StackPointer;
+
+  ///
+  /// Ring is enabled (allows per-ring disabling)
+  ///
+  BOOLEAN  Enabled;
+} MMIX_RING_CONFIG;
 
 //
 // Arithmetic status register (rA) flags
@@ -268,6 +320,7 @@ typedef struct {
   UINT64  VirtualAddress;     ///< Virtual page address
   UINT64  PhysicalAddress;    ///< Physical page address
   UINT16  Asid;               ///< Address space ID
+  UINT8   Ring;               ///< Protection ring (0-3 for KESU, 4 for hypervisor)
   UINT8   PageSize;           ///< Page size encoding (0=4KB, 1=2MB, 2=1GB)
   UINT8   Flags;              ///< Permission and attribute flags
   BOOLEAN Valid;              ///< Entry is valid

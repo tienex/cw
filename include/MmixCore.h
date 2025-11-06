@@ -176,7 +176,7 @@ struct _MMIX_CPU_STATE {
   UINT64  Pc;
 
   //
-  // Current privilege level
+  // Current privilege level (ring)
   //
   MMIX_PRIVILEGE_LEVEL  PrivilegeLevel;
 
@@ -186,9 +186,14 @@ struct _MMIX_CPU_STATE {
   MMIX_EXECUTION_MODE  ExecutionMode;
 
   //
-  // Current endianness mode
+  // Per-ring configuration (KESU 4-ring protection)
   //
-  MMIX_ENDIAN_MODE  EndiannessMode;
+  MMIX_RING_CONFIG  RingConfig[MMIX_RING_COUNT];
+
+  //
+  // KESU extension enabled (if FALSE, uses legacy 2-ring K/U model)
+  //
+  BOOLEAN  KesuExtensionEnabled;
 
   //
   // Floating-point rounding mode
@@ -498,6 +503,105 @@ MmixCpuWriteSpecialRegister (
 VOID
 MmixCpuDestroy (
   IN MMIX_CPU_STATE  *CpuState
+  );
+
+//
+// KESU 4-ring protection functions
+//
+
+/**
+  Transition to a different protection ring.
+
+  Performs a ring transition with stack switching and context saving.
+  Validates the transition is allowed (can only move to more privileged
+  rings via call gates, and to less privileged rings via return).
+
+  @param[in,out]  CpuState      Pointer to CPU state.
+  @param[in]      NewRing       Target ring (0-3).
+  @param[in]      IsCall        TRUE if ring transition via call, FALSE if return.
+
+  @retval MMIX_SUCCESS          Ring transition completed successfully.
+  @retval MMIX_ERROR_ACCESS_DENIED  Transition not allowed.
+
+**/
+MMIX_STATUS
+MmixCpuTransitionRing (
+  IN OUT MMIX_CPU_STATE  *CpuState,
+  IN     UINT8           NewRing,
+  IN     BOOLEAN         IsCall
+  );
+
+/**
+  Get the current endianness mode.
+
+  Returns the endianness mode for the current privilege ring.
+  If KESU extension is disabled, returns big-endian (MMIX default).
+
+  @param[in]      CpuState      Pointer to CPU state.
+
+  @return  Current endianness mode.
+
+**/
+MMIX_ENDIAN_MODE
+MmixCpuGetEndianness (
+  IN MMIX_CPU_STATE  *CpuState
+  );
+
+/**
+  Get the current stack direction.
+
+  Returns the stack growth direction for the current privilege ring.
+
+  @param[in]      CpuState      Pointer to CPU state.
+
+  @return  Current stack direction.
+
+**/
+MMIX_STACK_DIRECTION
+MmixCpuGetStackDirection (
+  IN MMIX_CPU_STATE  *CpuState
+  );
+
+/**
+  Get the page table base for the current ring.
+
+  Returns the page table base physical address for the current
+  privilege level. Used by memory management for address translation.
+
+  @param[in]      CpuState      Pointer to CPU state.
+
+  @return  Page table base physical address.
+
+**/
+UINT64
+MmixCpuGetPageTableBase (
+  IN MMIX_CPU_STATE  *CpuState
+  );
+
+/**
+  Configure a protection ring.
+
+  Sets the endianness, stack direction, and page table base for
+  a specific protection ring. Requires kernel privilege.
+
+  @param[in,out]  CpuState      Pointer to CPU state.
+  @param[in]      Ring          Ring number (0-3).
+  @param[in]      Endianness    Endianness mode for this ring.
+  @param[in]      StackDir      Stack growth direction.
+  @param[in]      PageTableBase Page table base physical address.
+
+  @retval MMIX_SUCCESS          Ring configured successfully.
+  @retval MMIX_ERROR_ACCESS_DENIED  Insufficient privilege.
+  @retval MMIX_ERROR_INVALID_PARAMETER  Invalid ring number.
+
+**/
+MMIX_STATUS
+MmixCpuConfigureRing (
+  IN OUT MMIX_CPU_STATE       *CpuState,
+  IN     UINT8                Ring,
+  IN     MMIX_ENDIAN_MODE     Endianness,
+  IN     MMIX_STACK_DIRECTION StackDir,
+  IN     UINT64               PageTableBase
   );
 
 #endif // __MMIX_CORE_H__

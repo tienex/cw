@@ -147,6 +147,55 @@ Created comprehensive ML helper library:
   - PowerPC IHPT + x86-64 (hardware page tables)
   - IA-64 VHPT + Intel EPT + AMD NPT (nested virtualization)
 
+### 5. KESU 4-Ring Protection Extension ✅
+**Implemented VMS/VAX-style 4-ring protection with per-ring configuration:**
+
+- **Privilege Rings**: Added KESU (Kernel, Executive, Supervisor, User) 4-ring model
+  - Ring 0: Kernel (most privileged)
+  - Ring 1: Executive (VMS outer executive mode)
+  - Ring 2: Supervisor (system services)
+  - Ring 3: User (least privileged)
+  - Ring 4: Hypervisor (outside ring model)
+
+- **Per-Ring Endianness**: Each ring can be big-endian or little-endian independently
+  - Enables mixed-endian systems (e.g., kernel BE, user LE)
+  - Separate from privilege mode (no longer tied to K/U spaces)
+
+- **Per-Ring Stack Direction**: Configurable stack growth per ring
+  - MmixStackGrowsDown: x86/ARM style (toward lower addresses)
+  - MmixStackGrowsUp: PA-RISC/Itanium style (toward higher addresses)
+  - Enables VMS compatibility with upward-growing stacks
+
+- **Per-Ring Page Tables**: Each ring has its own page table base
+  - Separate address spaces per privilege level
+  - TLB entries tagged with ring number
+  - No TLB flush on ring transitions
+
+- **Ring Transitions**: Hardware-assisted call/return gates
+  - Automatic stack switching between rings
+  - Privilege validation (can't skip rings)
+  - ~20 cycle transition cost
+
+- **Backward Compatibility**: KESU disabled by default
+  - Legacy 2-ring K/U model when disabled
+  - Opt-in via `CpuState->KesuExtensionEnabled`
+
+**Files Modified/Added**:
+- `include/MmixTypes.h`: KESU types, MMIX_RING_CONFIG structure
+- `include/MmixCore.h`: KESU function prototypes
+- `src/core/Kesu.c`: KESU implementation (NEW)
+- `src/core/Cpu.c`: Ring configuration initialization
+- `src/core/Execute.c`: Per-ring endianness queries
+- `src/core/Compressed.c`: Per-ring endianness queries
+- `docs/KESU_EXTENSION.md`: Complete KESU documentation (NEW)
+
+**Functions Added**:
+- `MmixCpuTransitionRing()`: Ring transition with stack switching
+- `MmixCpuGetEndianness()`: Get current ring's endianness
+- `MmixCpuGetStackDirection()`: Get current ring's stack direction
+- `MmixCpuGetPageTableBase()`: Get current ring's page table base
+- `MmixCpuConfigureRing()`: Configure ring settings (kernel only)
+
 ---
 
 ## Architecture Specifications

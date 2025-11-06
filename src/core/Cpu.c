@@ -72,12 +72,29 @@ MmixCpuInitialize (
   Cpu->MemoryState = MemoryState;
   Cpu->PrivilegeLevel = MmixPrivilegeSupervisor;
   Cpu->ExecutionMode = MmixExecutionModeNormal;
-  Cpu->EndiannessMode = MmixEndianBig;
   Cpu->RoundingMode = MmixRoundNearestEven;
   Cpu->VectorLengthBytes = VectorLength;
   Cpu->GlobalThreshold = 32;   // Default: $0-$31 are local
   Cpu->LocalThreshold = 0;
   Cpu->GuestMode = FALSE;
+
+  //
+  // KESU extension is disabled by default (backward compatibility)
+  // When disabled, system uses legacy 2-level K/U privilege model
+  //
+  Cpu->KesuExtensionEnabled = FALSE;
+
+  //
+  // Initialize KESU ring configuration with defaults
+  // These settings take effect when KESU extension is enabled
+  //
+  for (i = 0; i < MMIX_RING_COUNT; i++) {
+    Cpu->RingConfig[i].EndiannessMode  = MmixEndianBig;    // MMIX default
+    Cpu->RingConfig[i].StackDirection  = MmixStackGrowsDown;  // Common default
+    Cpu->RingConfig[i].PageTableBase   = 0;
+    Cpu->RingConfig[i].StackPointer    = 0;
+    Cpu->RingConfig[i].Enabled         = TRUE;
+  }
 
   //
   // Initialize general registers
@@ -139,7 +156,7 @@ MmixCpuInitialize (
   //
   // Initialize FP registers
   //
-  for (i = 0; i < 32; i++) {
+  for (i = 0; i < MMIX_FLOATING_REGISTER_COUNT; i++) {
     memset (Cpu->FpRegisters[i].Bytes, 0, 16);
   }
 
@@ -212,7 +229,6 @@ MmixCpuReset (
   //
   CpuState->PrivilegeLevel = MmixPrivilegeSupervisor;
   CpuState->ExecutionMode = MmixExecutionModeNormal;
-  CpuState->EndiannessMode = MmixEndianBig;
   CpuState->GuestMode = FALSE;
 
   //
@@ -441,9 +457,17 @@ MmixCpuWriteSpecialRegister (
 
     case MMIX_rEN:
       //
-      // Endianness control
+      // Endianness control - sets endianness for current ring if KESU enabled
+      // Otherwise, sets endianness globally (legacy mode)
       //
-      CpuState->EndiannessMode = (Value & 0x1) ? MmixEndianLittle : MmixEndianBig;
+      if (CpuState->KesuExtensionEnabled) {
+        UINT8  Ring = (UINT8)CpuState->PrivilegeLevel;
+        if (Ring < MMIX_RING_COUNT) {
+          CpuState->RingConfig[Ring].EndiannessMode =
+            (Value & 0x1) ? MmixEndianLittle : MmixEndianBig;
+        }
+      }
+      // Legacy mode: endianness stored in special register only
       break;
 
     case MMIX_rPR:
