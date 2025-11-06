@@ -79,6 +79,88 @@
 #define EM_68K         4   ///< Motorola 68000
 #define EM_VAX         75  ///< DEC VAX
 #define EM_S390        22  ///< IBM S/390
+// Historical and specialized architectures
+#define EM_WE32K       1   ///< AT&T WE 32100
+#define EM_NS32K       97  ///< National Semiconductor 32000
+#define EM_TAHOE       99  ///< Tahoe
+#define EM_PDP10       64  ///< DEC PDP-10
+#define EM_PDP11       65  ///< DEC PDP-11
+#define EM_88K         5   ///< Motorola 88000
+#define EM_DLX         0x5aa5  ///< DLX
+#define EM_MOXIE       223    ///< Moxie
+#define EM_LOONGARCH   258    ///< LoongArch
+#define EM_CONVEX      0x5143 ///< Convex
+#define EM_PYRAMID     0x5045 ///< Pyramid
+#define EM_CRAY        0x4352 ///< Cray
+#define EM_HPFOCUS     0x4846 ///< HP Focus
+#define EM_EBC         0x1057 ///< EFI Byte Code
+#define EM_8086        0  ///< Intel 8086 (uses EM_NONE with flags)
+#define EM_80286       0x286  ///< Intel 80286
+#define EM_29K         29     ///< AMD 29000
+#define EM_AVR         83     ///< Atmel AVR
+#define EM_AVR32       0x18AD ///< Atmel AVR32
+#define EM_NIOS2       113    ///< Altera Nios II
+#define EM_MICROBLAZE  189    ///< Xilinx MicroBlaze
+#define EM_OPENRISC    92     ///< OpenRISC
+#define EM_MSP430      105    ///< TI MSP430
+#define EM_LANAI       244    ///< Google Lanai
+#define EM_ELBRUS      175    ///< MCST Elbrus e2k
+#define EM_CLIPPER     0x434C ///< Intergraph Clipper
+#define EM_BPF         247    ///< Linux BPF
+#define EM_HEXAGON     164    ///< Qualcomm Hexagon
+#define EM_CSKY        252    ///< C-SKY
+#define EM_FR30        84     ///< Fujitsu FR30
+#define EM_MN10200     90     ///< Matsushita MN10200
+#define EM_MN10300     89     ///< Matsushita MN10300
+#define EM_FRV         0x5441 ///< Fujitsu FR-V
+#define EM_NECVE       251    ///< NEC SX-Aurora
+#define EM_IP2K        101    ///< Ubicom IP2000
+#define EM_IQ2000      0xFEBA ///< Vitesse IQ2000
+#define EM_CRIS        76     ///< Axis CRIS
+#define EM_ARC         45     ///< ARC
+#define EM_SH          42     ///< SuperH
+#define EM_PARISC      15     ///< HP PA-RISC
+#define EM_CR16        177    ///< National Semiconductor CR16
+#define EM_D10V        85     ///< Mitsubishi D10V
+#define EM_D30V        86     ///< Mitsubishi D30V
+#define EM_XTENSA      94     ///< Tensilica Xtensa
+#define EM_860         7      ///< Intel i860
+#define EM_960         19     ///< Intel i960
+#define EM_TI_C6000    140    ///< TI TMS320C6x
+#define EM_TI_C5500    0xC500 ///< TI TMS320C55x
+#define EM_TI_C5400    0xC540 ///< TI TMS320C54x
+#define EM_BLACKFIN    106    ///< Analog Devices Blackfin
+#define EM_EPIPHANY    0x1223 ///< Adapteva Epiphany
+#define EM_M32R        88     ///< Mitsubishi M32R
+#define EM_M32C        0x13b  ///< Renesas M32C
+#define EM_LATTICEMICO32 138  ///< Lattice Mico32
+#define EM_NDS32       167    ///< Andes NDS32
+#define EM_V850        87     ///< NEC V850
+#define EM_TILEPRO     188    ///< Tilera TILE-Gx
+#define EM_Z80         220    ///< Zilog Z80
+#define EM_Z8000       0x8000 ///< Zilog Z8000
+#define EM_6502        0x6502 ///< MOS 6502
+#define EM_65816       0x6516 ///< WDC 65816
+#define EM_MCORE       39     ///< Motorola MCore
+#define EM_TRICORE     44     ///< Infineon TriCore
+#define EM_MEP         0xF00D ///< Toshiba MeP
+#define EM_PICOJAVA    0xCAFE ///< Sun picoJava
+#define EM_MN103       0xBEEF ///< Matsushita MN103
+#define EM_METAG       174    ///< Imagination Meta
+#define EM_SCORE       135    ///< Sunplus S+core
+#define EM_RL78        0x00C1 ///< Renesas RL78
+#define EM_RX          173    ///< Renesas RX
+#define EM_VISIUM      221    ///< CDS VISium
+#define EM_XGATE       115    ///< Freescale XGATE
+#define EM_XSTORMY16   0xAD45 ///< Sanyo XStormy16
+#define EM_KVX         256    ///< Kalray KVX
+#define EM_NFP         250    ///< Netronome Flow Processor
+#define EM_MT          0x2530 ///< Morpho MT
+#define EM_FT32        0xFD32 ///< FTDI FT32
+#define EM_H8_300      46     ///< Hitachi H8/300
+#define EM_SPU         23     ///< Cell Broadband Engine SPU
+#define EM_WEBASSEMBLY 0x4157 ///< WebAssembly
+#define EM_PRU         144    ///< TI PRU
 
 //
 // Section Header Types
@@ -1535,6 +1617,87 @@ ElfMachineToGeneric (
     case EM_68K:     return BinMachineM68K;
     case EM_VAX:     return BinMachineVAX;
     case EM_S390:    return BinMachineS390;
+    case EM_WE32K:    return BinMachineWE32K;
+    case EM_NS32K:    return BinMachineNS32K;
+    case EM_TAHOE:    return BinMachineTahoe;
+    case EM_PDP10:    return BinMachinePDP10;
+    case EM_PDP11:    return BinMachinePDP11;
+    case EM_88K:      return BinMachineM88K;
+    case EM_DLX:      return BinMachineDLX;
+    case EM_MOXIE:    return BinMachineMoxie;
+    case EM_LOONGARCH: return BinMachineLoongArch64; // Context determines 32/64
+    case EM_CONVEX:   return BinMachineConvex;
+    case EM_PYRAMID:  return BinMachinePyramid;
+    case EM_CRAY:     return BinMachineCray;
+    case EM_HPFOCUS:  return BinMachineHPFocus;
+    case EM_EBC:      return BinMachineEBC;
+    case EM_8086:     return BinMachineI8086;
+    case EM_80286:    return BinMachineI80286;
+    case EM_29K:      return BinMachineAM29K;
+    case EM_AVR:      return BinMachineAVR;
+    case EM_AVR32:    return BinMachineAVR32;
+    case EM_NIOS2:    return BinMachineNios2;
+    case EM_MICROBLAZE: return BinMachineMicroBlaze;
+    case EM_OPENRISC: return BinMachineOpenRISC;
+    case EM_MSP430:   return BinMachineMSP430;
+    case EM_LANAI:    return BinMachineLanai;
+    case EM_ELBRUS:   return BinMachineElbrus2K;
+    case EM_CLIPPER:  return BinMachineClipper;
+    case EM_BPF:      return BinMachineBPF;
+    case EM_HEXAGON:  return BinMachineHexagon;
+    case EM_CSKY:     return BinMachineCSKY;
+    case EM_FR30:     return BinMachineFR30;
+    case EM_MN10200:  return BinMachineMN10200;
+    case EM_MN10300:  return BinMachineMN10300;
+    case EM_FRV:      return BinMachineFRV;
+    case EM_NECVE:    return BinMachineNECVE;
+    case EM_IP2K:     return BinMachineIP2K;
+    case EM_IQ2000:   return BinMachineIQ2000;
+    case EM_CRIS:     return BinMachineCRIS;
+    case EM_ARC:      return BinMachineARC;
+    case EM_SH:       return BinMachineSuperH;
+    case EM_PARISC:   return BinMachinePARISC;
+    case EM_CR16:     return BinMachineCR16;
+    case EM_D10V:     return BinMachineD10V;
+    case EM_D30V:     return BinMachineD30V;
+    case EM_XTENSA:   return BinMachineXtensa;
+    case EM_860:      return BinMachineI860;
+    case EM_960:      return BinMachineI960;
+    case EM_TI_C6000: return BinMachineTIC6X;
+    case EM_TI_C5500: return BinMachineTIC55X;
+    case EM_TI_C5400: return BinMachineTIC54X;
+    case EM_BLACKFIN: return BinMachineBlackfin;
+    case EM_EPIPHANY: return BinMachineEpiphany;
+    case EM_M32R:     return BinMachineM32R;
+    case EM_M32C:     return BinMachineM32C;
+    case EM_LATTICEMICO32: return BinMachineLM32;
+    case EM_NDS32:    return BinMachineNDS32;
+    case EM_V850:     return BinMachineV850;
+    case EM_TILEPRO:  return BinMachineTILE;
+    case EM_Z80:      return BinMachineZ80;
+    case EM_Z8000:    return BinMachineZ8000;
+    case EM_6502:     return BinMachine6502;
+    case EM_65816:    return BinMachine65816;
+    case EM_MCORE:    return BinMachineMCore;
+    case EM_TRICORE:  return BinMachineTriCore;
+    case EM_MEP:      return BinMachineMEP;
+    case EM_PICOJAVA: return BinMachinePicoJava;
+    case EM_MN103:    return BinMachineAM33;
+    case EM_METAG:    return BinMachineMetag;
+    case EM_SCORE:    return BinMachineSCORE;
+    case EM_RL78:     return BinMachineRL78;
+    case EM_RX:       return BinMachineRX;
+    case EM_VISIUM:   return BinMachineVisium;
+    case EM_XGATE:    return BinMachineXGATE;
+    case EM_XSTORMY16: return BinMachineXStormy16;
+    case EM_KVX:      return BinMachineKVX;
+    case EM_NFP:      return BinMachineNFP;
+    case EM_MT:       return BinMachineMT;
+    case EM_FT32:     return BinMachineFT32;
+    case EM_H8_300:   return BinMachineH8300;
+    case EM_SPU:      return BinMachineSPU;
+    case EM_WEBASSEMBLY: return BinMachineWASM;
+    case EM_PRU:      return BinMachinePRU;
     default:         return BinMachineUnknown;
   }
 }
