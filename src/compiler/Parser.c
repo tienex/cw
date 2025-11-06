@@ -673,6 +673,45 @@ ParseAssignmentExpression (
     return CondExpr;
   }
 
+  //
+  // Check for assignment operators (=, +=, -=, etc.)
+  // Assignment is right-associative
+  //
+  TOKEN_TYPE  OpType = Parser->CurrentToken->Type;
+  if (OpType == TOK_EQUAL || OpType == TOK_PLUS_EQUAL || OpType == TOK_MINUS_EQUAL ||
+      OpType == TOK_STAR_EQUAL || OpType == TOK_SLASH_EQUAL || OpType == TOK_PERCENT_EQUAL ||
+      OpType == TOK_AMPERSAND_EQUAL || OpType == TOK_PIPE_EQUAL || OpType == TOK_CARET_EQUAL ||
+      OpType == TOK_SHIFT_LEFT_EQUAL || OpType == TOK_SHIFT_RIGHT_EQUAL) {
+    TOKEN_LOCATION  OpLoc = Parser->CurrentToken->Location;
+    ParserAdvance (Parser);
+
+    //
+    // Parse right-hand side (recursive for right-associativity)
+    //
+    AST_EXPR  *RightExpr = ParseAssignmentExpression (Parser);
+
+    //
+    // Determine assignment operator
+    //
+    BINARY_OPERATOR  Op;
+    switch (OpType) {
+      case TOK_EQUAL:             Op = BIN_OP_ASSIGN; break;
+      case TOK_PLUS_EQUAL:        Op = BIN_OP_ADD_ASSIGN; break;
+      case TOK_MINUS_EQUAL:       Op = BIN_OP_SUB_ASSIGN; break;
+      case TOK_STAR_EQUAL:        Op = BIN_OP_MUL_ASSIGN; break;
+      case TOK_SLASH_EQUAL:       Op = BIN_OP_DIV_ASSIGN; break;
+      case TOK_PERCENT_EQUAL:     Op = BIN_OP_MOD_ASSIGN; break;
+      case TOK_AMPERSAND_EQUAL:   Op = BIN_OP_AND_ASSIGN; break;
+      case TOK_PIPE_EQUAL:        Op = BIN_OP_OR_ASSIGN; break;
+      case TOK_CARET_EQUAL:       Op = BIN_OP_XOR_ASSIGN; break;
+      case TOK_SHIFT_LEFT_EQUAL:  Op = BIN_OP_SHL_ASSIGN; break;
+      case TOK_SHIFT_RIGHT_EQUAL: Op = BIN_OP_SHR_ASSIGN; break;
+      default:                    Op = BIN_OP_ASSIGN; break;
+    }
+
+    return AstExprCreateBinary (&OpLoc, Op, Expr, RightExpr);
+  }
+
   return Expr;
 }
 

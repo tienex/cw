@@ -639,6 +639,78 @@ IrGenBinaryExpr (
     case BIN_OP_GE:         Opcode = IR_GE; break;
     case BIN_OP_LOGICAL_AND: Opcode = IR_LAND; break;
     case BIN_OP_LOGICAL_OR:  Opcode = IR_LOR; break;
+
+    case BIN_OP_ASSIGN:
+    case BIN_OP_ADD_ASSIGN:
+    case BIN_OP_SUB_ASSIGN:
+    case BIN_OP_MUL_ASSIGN:
+    case BIN_OP_DIV_ASSIGN:
+    case BIN_OP_MOD_ASSIGN:
+    case BIN_OP_AND_ASSIGN:
+    case BIN_OP_OR_ASSIGN:
+    case BIN_OP_XOR_ASSIGN:
+    case BIN_OP_SHL_ASSIGN:
+    case BIN_OP_SHR_ASSIGN:
+      //
+      // Handle assignment operators
+      // For simple assignment (=), just move right to left
+      // For compound assignments (+=, -=, etc.), compute operation then store
+      //
+      {
+        IR_OPERAND  FinalValue;
+
+        if (Expr->Binary.Op == BIN_OP_ASSIGN) {
+          //
+          // Simple assignment: y = x
+          //
+          FinalValue = Right;
+        } else {
+          //
+          // Compound assignment: y += x
+          // Need to load current value of left, perform operation, then store
+          //
+          IR_OPCODE  CompoundOp;
+
+          switch (Expr->Binary.Op) {
+            case BIN_OP_ADD_ASSIGN: CompoundOp = IR_ADD; break;
+            case BIN_OP_SUB_ASSIGN: CompoundOp = IR_SUB; break;
+            case BIN_OP_MUL_ASSIGN: CompoundOp = IR_MUL; break;
+            case BIN_OP_DIV_ASSIGN: CompoundOp = IR_DIV; break;
+            case BIN_OP_MOD_ASSIGN: CompoundOp = IR_MOD; break;
+            case BIN_OP_AND_ASSIGN: CompoundOp = IR_AND; break;
+            case BIN_OP_OR_ASSIGN:  CompoundOp = IR_OR; break;
+            case BIN_OP_XOR_ASSIGN: CompoundOp = IR_XOR; break;
+            case BIN_OP_SHL_ASSIGN: CompoundOp = IR_SHL; break;
+            case BIN_OP_SHR_ASSIGN: CompoundOp = IR_SHR; break;
+            default:                CompoundOp = IR_ADD; break;
+          }
+
+          //
+          // Compute: temp = left op right
+          //
+          FinalValue = IrAllocReg (Context->CurrentFunc, Expr->Type);
+          Instr = IrCreateInstruction (CompoundOp);
+          Instr->Dst = FinalValue;
+          Instr->Src1 = Left;
+          Instr->Src2 = Right;
+          IrAppendInstruction (Context->CurrentBlock, Instr);
+        }
+
+        //
+        // Store result back to left side
+        // Generate MOVE instruction: left = FinalValue
+        //
+        Instr = IrCreateInstruction (IR_MOVE);
+        Instr->Dst = Left;
+        Instr->Src1 = FinalValue;
+        IrAppendInstruction (Context->CurrentBlock, Instr);
+
+        //
+        // Assignment expressions return the value that was assigned
+        //
+        return Left;
+      }
+
     default:
       //
       // TODO: Handle other operators
@@ -1045,6 +1117,53 @@ IrGenStatement (
         BrInstr->LabelId = Context->ContinueTarget->Id;
         IrAppendInstruction (Context->CurrentBlock, BrInstr);
         IrAddEdge (Context->CurrentBlock, Context->ContinueTarget);
+      }
+      break;
+
+    case AST_STMT_DECL:
+      //
+      // Process local variable declarations
+      //
+      for (UINT32 i = 0; i < Stmt->Decl.DeclarationCount; i++) {
+        AST_DECL  *Decl = Stmt->Decl.Declarations[i];
+        if (Decl != NULL && Decl->Kind == AST_DECL_VAR) {
+          //
+          // Allocate register for local variable
+          //
+          IR_OPERAND  VarOp = IrAllocReg (Context->CurrentFunc, Decl->Type);
+
+          //
+          // Add to function's symbol table
+          //
+          if (Decl->Name != NULL && Context->CurrentFunc->Symbols != NULL) {
+            IrAddSymbol (
+              Context->CurrentFunc->Symbols,
+              Decl->Name,
+              VarOp,
+              Decl->Type,
+              FALSE,   // IsParameter = FALSE for local variables
+              0        // ParamIndex (unused for locals)
+            );
+          }
+
+          //
+          // Generate initializer if present
+          //
+          if (Decl->Var.Initializer != NULL) {
+            IR_OPERAND       InitValue;
+            IR_INSTRUCTION  *StoreInstr;
+
+            InitValue = IrGenExpression (Context, Decl->Var.Initializer);
+
+            //
+            // Generate MOVE instruction to initialize the variable
+            //
+            StoreInstr = IrCreateInstruction (IR_MOVE);
+            StoreInstr->Dst = VarOp;
+            StoreInstr->Src1 = InitValue;
+            IrAppendInstruction (Context->CurrentBlock, StoreInstr);
+          }
+        }
       }
       break;
 

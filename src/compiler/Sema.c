@@ -846,6 +846,31 @@ SemaCheckStatement (
       }
       break;
 
+    case AST_STMT_DECL:
+      //
+      // Process local variable declarations
+      //
+      for (UINT32 i = 0; i < Stmt->Decl.DeclarationCount; i++) {
+        AST_DECL  *Decl = Stmt->Decl.Declarations[i];
+        if (Decl != NULL && Decl->Kind == AST_DECL_VAR) {
+          //
+          // Add local variable to current scope
+          //
+          if (Decl->Name != NULL) {
+            SemaAddSymbol (Context, Decl->Name, SYMBOL_VAR, Decl->Type, Decl);
+          }
+
+          //
+          // Check initializer if present
+          //
+          if (Decl->Var.Initializer != NULL) {
+            SemaCheckExpression (Context, Decl->Var.Initializer);
+            // TODO: Check type compatibility with variable type
+          }
+        }
+      }
+      break;
+
     case AST_STMT_BREAK:
       if (!Context->InLoop && !Context->InSwitch) {
         SemaError (Context, &Stmt->Location, "break statement not within loop or switch");
