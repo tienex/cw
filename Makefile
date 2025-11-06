@@ -32,12 +32,13 @@ LDD = $(BIN_DIR)/ldd
 OTOOL = $(BIN_DIR)/otool
 DUMPBIN = $(BIN_DIR)/dumpbin
 LIPO = $(BIN_DIR)/lipo
+CODESIGN = $(BIN_DIR)/codesign
 REDO_PREBINDING = $(BIN_DIR)/redo_prebinding
 DYLD_STUB = $(BIN_DIR)/dyld
 LIB = $(BIN_DIR)/lib
 LINK = $(BIN_DIR)/link
 
-UNIVERSAL_TOOLS = $(NM) $(SIZE) $(STRINGS) $(OBJDUMP_UNIVERSAL) $(LDD) $(OTOOL) $(DUMPBIN) $(LIPO) $(REDO_PREBINDING) $(DYLD_STUB) $(LIB) $(LINK)
+UNIVERSAL_TOOLS = $(NM) $(SIZE) $(STRINGS) $(OBJDUMP_UNIVERSAL) $(LDD) $(OTOOL) $(DUMPBIN) $(LIPO) $(CODESIGN) $(REDO_PREBINDING) $(DYLD_STUB) $(LIB) $(LINK)
 
 ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER) $(FILECHECK) $(BINFORMAT_TEST) $(UNIVERSAL_TOOLS)
 
@@ -130,6 +131,7 @@ LDD_OBJS = $(BUILD_DIR)/tools/ldd.o
 OTOOL_OBJS = $(BUILD_DIR)/tools/otool.o
 DUMPBIN_OBJS = $(BUILD_DIR)/tools/dumpbin.o
 LIPO_OBJS = $(BUILD_DIR)/tools/lipo.o
+CODESIGN_OBJS = $(BUILD_DIR)/tools/codesign.o
 REDO_PREBINDING_OBJS = $(BUILD_DIR)/tools/redo_prebinding.o
 DYLD_STUB_OBJS = $(BUILD_DIR)/tools/dyld.o
 LIB_OBJS = $(BUILD_DIR)/tools/lib.o
@@ -158,6 +160,7 @@ all: $(ALL_TARGETS)
 	@echo "  $(OTOOL)      - macOS object tool"
 	@echo "  $(DUMPBIN)    - Windows COFF/PE dumper"
 	@echo "  $(LIPO)       - Universal binary tool"
+	@echo "  $(CODESIGN)   - Code signature manager"
 	@echo "  $(LIB)        - Windows library manager"
 	@echo "  $(LINK)       - Windows linker"
 
@@ -253,6 +256,10 @@ $(DUMPBIN): $(DUMPBIN_OBJS) | $(BIN_DIR)
 $(LIPO): $(LIPO_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
 	$(CC) $(LIPO_OBJS) $(BINFORMAT_LIB_OBJS) -o $(LIPO) $(LDFLAGS)
 	@echo "Built: $(LIPO)"
+
+$(CODESIGN): $(CODESIGN_OBJS) $(BINFORMAT_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(CODESIGN_OBJS) $(BINFORMAT_LIB_OBJS) -o $(CODESIGN) $(LDFLAGS)
+	@echo "Built: $(CODESIGN)"
 
 $(REDO_PREBINDING): $(REDO_PREBINDING_OBJS) | $(BIN_DIR)
 	$(CC) $(REDO_PREBINDING_OBJS) -o $(REDO_PREBINDING) $(LDFLAGS)
