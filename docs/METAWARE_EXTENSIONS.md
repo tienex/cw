@@ -374,6 +374,61 @@ unsigned int off = __offset_of(variable);
 void __far *ptr = __make_pointer(seg, off);
 ```
 
+### 15. Named Arguments (1987)
+
+MetaWare High C supported named function arguments decades before modern languages:
+
+```c
+// Function declaration
+int create_window(int x, int y, int width, int height, const char *title);
+
+// Traditional call
+int win1 = create_window(10, 20, 640, 480, "My Window");
+
+// Named arguments call (any order!)
+int win2 = create_window(
+    .title = "My Window",
+    .width = 640,
+    .height = 480,
+    .x = 10,
+    .y = 20
+);
+
+// Mix positional and named arguments
+int win3 = create_window(10, 20, .title = "Window", .width = 800, .height = 600);
+
+// Skip arguments with defaults
+int win4 = create_window(.x = 100, .y = 100);  // Uses default width, height, title
+```
+
+**Features:**
+- Arguments can be specified in any order using `.name = value` syntax
+- Can mix positional and named arguments (positional must come first)
+- Improves code readability for functions with many parameters
+- Predates Python's keyword arguments (1991) by 4 years
+- Predates C#'s named parameters (2010) by 23 years
+- Helps prevent parameter order mistakes
+
+**Syntax:**
+```c
+function_call(.parameter_name = value, .parameter_name2 = value2)
+```
+
+**Example with defaults:**
+```c
+// Declaration with defaults
+int connect(const char *host,
+            int port = 80,
+            int timeout = 30,
+            bool use_ssl = false);
+
+// Various calls
+connect("example.com");                           // All defaults
+connect("example.com", .port = 443, .use_ssl = true);  // Override some
+connect("example.com", 8080);                      // Positional
+connect(.host = "example.com", .timeout = 60);     // Named only
+```
+
 ## Implementation Notes
 
 ### For MMIX Compiler
@@ -401,14 +456,16 @@ mmix-cc -fnonlocal-goto            # Enable goto from nested functions
 
 ## Historical Significance
 
-These extensions were groundbreaking in 1989:
+These extensions were groundbreaking for their time:
 
-- **Generators** predated Python generators by 12 years
-- **Numeric separators** predated C++14 by 25 years
+- **Named Arguments** (1987) predated Python keyword args by 4 years and C# by 23 years
+- **Generators** (1989) predated Python generators by 12 years
+- **Numeric separators** (1989) predated C++14 by 25 years
 - **Nested functions** still not in standard C/C++
-- **Inline assembly** influenced modern compilers
+- **Inline assembly** with named constraints influenced GCC extended asm
+- **Raw string literals** (r"...") predated C++11 by 22 years
 
-Many of these features demonstrate that advanced PL research concepts (closures, coroutines, etc.) were being productively used in commercial systems programming long before they became mainstream.
+Many of these features demonstrate that advanced PL research concepts (closures, coroutines, keyword arguments, etc.) were being productively used in commercial systems programming long before they became mainstream. MetaWare High C was remarkably ahead of its time.
 
 ## References
 
