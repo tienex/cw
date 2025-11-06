@@ -14,13 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "LibElf.h"
-
-//
-// Define INLINE for byte-swapping helper functions
-//
-#ifndef INLINE
-#define INLINE static inline
-#endif
+#include "BinFormatEndian.h"
 
 //
 // ELF Identification Indices
@@ -528,64 +522,12 @@ typedef struct _ELF_CONTEXT {
 #define ELF64_R_TYPE(i)     ((i) & 0xffffffffL)
 
 //
-// Byte-swapping utility functions
-//
-INLINE
-UINT16
-ElfSwap16 (
-  IN  UINT16  Value
-  )
-{
-  return ((Value & 0xFF) << 8) | ((Value >> 8) & 0xFF);
-}
-
-INLINE
-UINT32
-ElfSwap32 (
-  IN  UINT32  Value
-  )
-{
-  return ((Value & 0x000000FF) << 24) |
-         ((Value & 0x0000FF00) << 8) |
-         ((Value & 0x00FF0000) >> 8) |
-         ((Value & 0xFF000000) >> 24);
-}
-
-INLINE
-UINT64
-ElfSwap64 (
-  IN  UINT64  Value
-  )
-{
-  return ((Value & 0x00000000000000FFULL) << 56) |
-         ((Value & 0x000000000000FF00ULL) << 40) |
-         ((Value & 0x0000000000FF0000ULL) << 24) |
-         ((Value & 0x00000000FF000000ULL) << 8) |
-         ((Value & 0x000000FF00000000ULL) >> 8) |
-         ((Value & 0x0000FF0000000000ULL) >> 24) |
-         ((Value & 0x00FF000000000000ULL) >> 40) |
-         ((Value & 0xFF00000000000000ULL) >> 56);
-}
-
-//
-// Detect host endianness
-//
-INLINE
-BOOLEAN
-IsLittleEndianHost (
-  VOID
-  )
-{
-  UINT16 test = 0x0001;
-  return *((UINT8*)&test) == 0x01;
-}
-
-//
 // Conditional swap macros - swap only if needed
+// These use the common byte-swapping functions from BinFormatEndian.h
 //
-#define SWAP16(ctx, val)  ((ctx)->NeedsByteSwap ? ElfSwap16(val) : (val))
-#define SWAP32(ctx, val)  ((ctx)->NeedsByteSwap ? ElfSwap32(val) : (val))
-#define SWAP64(ctx, val)  ((ctx)->NeedsByteSwap ? ElfSwap64(val) : (val))
+#define SWAP16(ctx, val)  BinFormatConditionalSwap16((val), (ctx)->NeedsByteSwap)
+#define SWAP32(ctx, val)  BinFormatConditionalSwap32((val), (ctx)->NeedsByteSwap)
+#define SWAP64(ctx, val)  BinFormatConditionalSwap64((val), (ctx)->NeedsByteSwap)
 
 //
 // x86 (i386) Relocation Types
@@ -1911,7 +1853,7 @@ ElfInitFile (
   // Determine if byte-swapping is needed
   //
   BOOLEAN FileIsLittleEndian = (ElfData[EI_DATA] == ELFDATA2LSB);
-  ElfCtx->NeedsByteSwap = (FileIsLittleEndian != IsLittleEndianHost());
+  ElfCtx->NeedsByteSwap = (FileIsLittleEndian != BinFormatIsLittleEndianHost());
 
   if (ElfCtx->Is64Bit) {
     ElfCtx->Header.Elf64 = (Elf64_Ehdr *)ElfData;
@@ -2023,7 +1965,7 @@ ElfInitMemory (
   // Determine if byte-swapping is needed
   //
   FileIsLittleEndian = (ElfData[EI_DATA] == ELFDATA2LSB);
-  ElfCtx->NeedsByteSwap = (FileIsLittleEndian != IsLittleEndianHost());
+  ElfCtx->NeedsByteSwap = (FileIsLittleEndian != BinFormatIsLittleEndianHost());
 
   if (ElfCtx->Is64Bit) {
     ElfCtx->Header.Elf64 = (Elf64_Ehdr *)ElfData;
