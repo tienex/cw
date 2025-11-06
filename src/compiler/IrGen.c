@@ -12,6 +12,180 @@
 #include <string.h>
 #include "../../include/compiler/MmixIr.h"
 
+//
+// Simple hash function for symbol table
+//
+STATIC
+UINT32
+HashString (
+  IN  CONST CHAR8  *Str,
+  IN  UINT32       TableSize
+  )
+{
+  UINT32  Hash = 5381;
+  INT32   C;
+
+  while ((C = *Str++) != 0) {
+    Hash = ((Hash << 5) + Hash) + C;  // hash * 33 + c
+  }
+
+  return Hash % TableSize;
+}
+
+/**
+  Create symbol table.
+
+  @param[in]      Size          Hash table size.
+
+  @return  Pointer to symbol table, or NULL on error.
+
+**/
+IR_SYMBOL_TABLE *
+IrCreateSymbolTable (
+  IN  UINT32  Size
+  )
+{
+  IR_SYMBOL_TABLE  *Table;
+
+  Table = (IR_SYMBOL_TABLE *)calloc (1, sizeof (IR_SYMBOL_TABLE));
+  if (Table == NULL) {
+    return NULL;
+  }
+
+  Table->Size = Size;
+  Table->Count = 0;
+  Table->Entries = (IR_SYMBOL **)calloc (Size, sizeof (IR_SYMBOL *));
+  if (Table->Entries == NULL) {
+    free (Table);
+    return NULL;
+  }
+
+  return Table;
+}
+
+/**
+  Destroy symbol table.
+
+  @param[in]      Table         Symbol table.
+
+**/
+VOID
+IrDestroySymbolTable (
+  IN  IR_SYMBOL_TABLE  *Table
+  )
+{
+  if (Table == NULL) {
+    return;
+  }
+
+  if (Table->Entries != NULL) {
+    for (UINT32 i = 0; i < Table->Size; i++) {
+      IR_SYMBOL  *Sym = Table->Entries[i];
+      while (Sym != NULL) {
+        IR_SYMBOL  *Next = Sym->Next;
+        if (Sym->Name != NULL) {
+          free (Sym->Name);
+        }
+        free (Sym);
+        Sym = Next;
+      }
+    }
+    free (Table->Entries);
+  }
+
+  free (Table);
+}
+
+/**
+  Add symbol to symbol table.
+
+  @param[in,out]  Table         Symbol table.
+  @param[in]      Name          Symbol name.
+  @param[in]      Operand       Operand for this symbol.
+  @param[in]      Type          Symbol type.
+  @param[in]      IsParameter   TRUE if function parameter.
+  @param[in]      ParamIndex    Parameter index if parameter.
+
+  @return  TRUE on success, FALSE on error.
+
+**/
+BOOLEAN
+IrAddSymbol (
+  IN OUT IR_SYMBOL_TABLE  *Table,
+  IN     CONST CHAR8      *Name,
+  IN     IR_OPERAND       Operand,
+  IN     AST_TYPE         *Type,
+  IN     BOOLEAN          IsParameter,
+  IN     UINT32           ParamIndex
+  )
+{
+  IR_SYMBOL  *Sym;
+  UINT32     Hash;
+
+  if (Table == NULL || Name == NULL) {
+    return FALSE;
+  }
+
+  //
+  // Create new symbol
+  //
+  Sym = (IR_SYMBOL *)calloc (1, sizeof (IR_SYMBOL));
+  if (Sym == NULL) {
+    return FALSE;
+  }
+
+  Sym->Name = strdup (Name);
+  Sym->Operand = Operand;
+  Sym->Type = Type;
+  Sym->IsParameter = IsParameter;
+  Sym->ParamIndex = ParamIndex;
+
+  //
+  // Add to hash table
+  //
+  Hash = HashString (Name, Table->Size);
+  Sym->Next = Table->Entries[Hash];
+  Table->Entries[Hash] = Sym;
+  Table->Count++;
+
+  return TRUE;
+}
+
+/**
+  Lookup symbol in symbol table.
+
+  @param[in]      Table         Symbol table.
+  @param[in]      Name          Symbol name.
+
+  @return  Pointer to symbol, or NULL if not found.
+
+**/
+IR_SYMBOL *
+IrLookupSymbol (
+  IN  IR_SYMBOL_TABLE  *Table,
+  IN  CONST CHAR8      *Name
+  )
+{
+  UINT32      Hash;
+  IR_SYMBOL   *Sym;
+
+  if (Table == NULL || Name == NULL) {
+    return NULL;
+  }
+
+  Hash = HashString (Name, Table->Size);
+  Sym = Table->Entries[Hash];
+
+  while (Sym != NULL) {
+    if (strcmp (Sym->Name, Name) == 0) {
+      return Sym;
+    }
+    Sym = Sym->Next;
+  }
+
+  return NULL;
+}
+
 /**
   Create IR module from AST.
 
@@ -105,6 +279,15 @@ IrCreateFunction (
     Func->ReturnType = NULL;
   }
 
+  //
+  // Create symbol table (size 64 should be enough for most functions)
+  //
+  Func->Symbols = IrCreateSymbolTable (64);
+  if (Func->Symbols == NULL) {
+    free (Func);
+    return NULL;
+  }
+
   return Func;
 }
 
@@ -161,6 +344,13 @@ IrDestroyFunction (
       }
     }
     free (Func->Blocks);
+  }
+
+  //
+  // Free symbol table
+  //
+  if (Func->Symbols != NULL) {
+    IrDestroySymbolTable (Func->Symbols);
   }
 
   free (Func);
@@ -562,7 +752,27 @@ IrGenExpression (
       return IrConstant (Expr->Integer.Value, Expr->Type);
 
     case AST_EXPR_IDENTIFIER:
-      return IrSymbol (Expr->Identifier.Name, Expr->Type);
+      {
+        IR_SYMBOL  *Sym;
+
+        //
+        // Look up identifier in symbol table
+        //
+        if (Context->CurrentFunc != NULL && Context->CurrentFunc->Symbols != NULL) {
+          Sym = IrLookupSymbol (Context->CurrentFunc->Symbols, Expr->Identifier.Name);
+          if (Sym != NULL) {
+            //
+            // Found in symbol table - return the associated operand
+            //
+            return Sym->Operand;
+          }
+        }
+
+        //
+        // Not found in symbol table - treat as global symbol
+        //
+        return IrSymbol (Expr->Identifier.Name, Expr->Type);
+      }
 
     case AST_EXPR_BINARY:
       return IrGenBinaryExpr (Context, Expr);
@@ -897,6 +1107,29 @@ IrGenDeclaration (
     //
     Context->CurrentFunc = Func;
     Context->CurrentBlock = Func->EntryBlock;
+
+    //
+    // Add parameters to symbol table
+    // MMIX calling convention: parameters are in registers $0, $1, $2, ...
+    //
+    if (Decl->Function.Parameters != NULL) {
+      for (UINT32 i = 0; i < Decl->Function.ParameterCount; i++) {
+        AST_DECL    *Param = Decl->Function.Parameters[i];
+        IR_OPERAND  ParamOp;
+
+        //
+        // Allocate virtual register for this parameter
+        //
+        ParamOp.Type = IR_OPERAND_REG;
+        ParamOp.RegNum = Func->NextRegNum++;
+        ParamOp.DataType = Param->Type;
+
+        //
+        // Add to symbol table
+        //
+        IrAddSymbol (Func->Symbols, Param->Name, ParamOp, Param->Type, TRUE, i);
+      }
+    }
 
     //
     // Generate function body

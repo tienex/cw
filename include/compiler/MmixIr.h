@@ -153,6 +153,27 @@ typedef struct _IR_BASIC_BLOCK {
 } IR_BASIC_BLOCK;
 
 /**
+  Symbol table entry for variables
+**/
+typedef struct _IR_SYMBOL {
+  CHAR8                 *Name;         // Variable name
+  IR_OPERAND            Operand;       // Operand (register/const/etc)
+  AST_TYPE              *Type;         // Variable type
+  BOOLEAN               IsParameter;   // Is function parameter
+  UINT32                ParamIndex;    // Parameter index if parameter
+  struct _IR_SYMBOL     *Next;         // Next in hash chain
+} IR_SYMBOL;
+
+/**
+  Symbol table for tracking variables
+**/
+typedef struct {
+  IR_SYMBOL             **Entries;     // Hash table entries
+  UINT32                Size;          // Hash table size
+  UINT32                Count;         // Number of symbols
+} IR_SYMBOL_TABLE;
+
+/**
   IR function
 **/
 typedef struct {
@@ -166,6 +187,7 @@ typedef struct {
   UINT32             NextInstrId;      // Next instruction ID
   UINT32             ParamCount;       // Number of parameters
   AST_TYPE           *ReturnType;      // Return type
+  IR_SYMBOL_TABLE    *Symbols;         // Symbol table for this function
 } IR_FUNCTION;
 
 /**
@@ -419,6 +441,68 @@ VOID
 IrPrintModule (
   IN  IR_MODULE  *Module,
   IN  FILE       *Output
+  );
+
+/**
+  Create symbol table.
+
+  @param[in]      Size          Hash table size.
+
+  @return  Pointer to symbol table, or NULL on error.
+
+**/
+IR_SYMBOL_TABLE *
+IrCreateSymbolTable (
+  IN  UINT32  Size
+  );
+
+/**
+  Destroy symbol table.
+
+  @param[in]      Table         Symbol table.
+
+**/
+VOID
+IrDestroySymbolTable (
+  IN  IR_SYMBOL_TABLE  *Table
+  );
+
+/**
+  Add symbol to symbol table.
+
+  @param[in,out]  Table         Symbol table.
+  @param[in]      Name          Symbol name.
+  @param[in]      Operand       Operand for this symbol.
+  @param[in]      Type          Symbol type.
+  @param[in]      IsParameter   TRUE if function parameter.
+  @param[in]      ParamIndex    Parameter index if parameter.
+
+  @return  TRUE on success, FALSE on error.
+
+**/
+BOOLEAN
+IrAddSymbol (
+  IN OUT IR_SYMBOL_TABLE  *Table,
+  IN     CONST CHAR8      *Name,
+  IN     IR_OPERAND       Operand,
+  IN     AST_TYPE         *Type,
+  IN     BOOLEAN          IsParameter,
+  IN     UINT32           ParamIndex
+  );
+
+/**
+  Lookup symbol in symbol table.
+
+  @param[in]      Table         Symbol table.
+  @param[in]      Name          Symbol name.
+
+  @return  Pointer to symbol, or NULL if not found.
+
+**/
+IR_SYMBOL *
+IrLookupSymbol (
+  IN  IR_SYMBOL_TABLE  *Table,
+  IN  CONST CHAR8      *Name
   );
 
 #endif // MMIX_IR_H_
