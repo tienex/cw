@@ -320,6 +320,51 @@ typedef struct {
 } BINFORMAT_ARCHITECTURE;
 
 ///
+/// Code signature types
+///
+typedef enum {
+  BinSignatureTypeNone = 0,          ///< No signature
+  BinSignatureTypeAdHoc = 1,          ///< Ad-hoc signature (no certificate)
+  BinSignatureTypeDeveloper = 2,      ///< Developer signature
+  BinSignatureTypeAppStore = 3,       ///< App Store signature
+  BinSignatureTypePGP = 4,            ///< PGP signature
+  BinSignatureTypeAuthenticode = 5,   ///< Windows Authenticode
+  BinSignatureTypePKCS7 = 6,          ///< PKCS#7 signature
+  BinSignatureTypeX509 = 7            ///< X.509 certificate
+} BINFORMAT_SIGNATURE_TYPE;
+
+///
+/// Code signature hash algorithm
+///
+typedef enum {
+  BinHashNone = 0,
+  BinHashSHA1 = 1,
+  BinHashSHA256 = 2,
+  BinHashSHA384 = 3,
+  BinHashSHA512 = 4,
+  BinHashMD5 = 5
+} BINFORMAT_HASH_ALGORITHM;
+
+///
+/// Code signature descriptor
+///
+typedef struct {
+  BINFORMAT_SIGNATURE_TYPE  Type;              ///< Signature type
+  BINFORMAT_HASH_ALGORITHM  HashAlgorithm;     ///< Hash algorithm used
+  BOOLEAN                   IsValid;           ///< Signature verification status
+  BOOLEAN                   IsSigned;          ///< TRUE if binary is signed
+  UINT64                    SignatureOffset;   ///< Offset of signature in file
+  UINT64                    SignatureSize;     ///< Size of signature data
+  UINT64                    CodeLimit;         ///< Signed code range end
+  CHAR8                     SignerName[256];   ///< Signer/certificate name
+  CHAR8                     TeamID[64];        ///< Team ID (Apple)
+  CHAR8                     BundleID[256];     ///< Bundle identifier
+  UINT32                    Flags;             ///< Signature flags
+  UINT64                    Timestamp;         ///< Signing timestamp
+  VOID                      *RawData;          ///< Raw signature data
+} BINFORMAT_CODE_SIGNATURE;
+
+///
 /// String encoding types
 ///
 typedef enum {
@@ -1022,6 +1067,74 @@ BINFORMAT_STATUS
   );
 
 /**
+  Get code signature information.
+
+  @param[in]   Context           Binary context.
+  @param[out]  Signature         Pointer to receive signature information.
+
+  @retval BINFORMAT_SUCCESS      Signature information retrieved.
+  @retval BINFORMAT_ERROR_NOT_FOUND  Binary is not signed.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_GET_SIGNATURE)(
+  IN  BINFORMAT_CONTEXT       *Context,
+  OUT BINFORMAT_CODE_SIGNATURE *Signature
+  );
+
+/**
+  Verify code signature.
+
+  @param[in]   Context           Binary context.
+  @param[out]  IsValid           Pointer to receive validation result.
+
+  @retval BINFORMAT_SUCCESS      Verification completed.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_VERIFY_SIGNATURE)(
+  IN  BINFORMAT_CONTEXT   *Context,
+  OUT BOOLEAN             *IsValid
+  );
+
+/**
+  Add or update code signature.
+
+  @param[in]   Context           Binary context.
+  @param[in]   Signature         Signature data to add.
+
+  @retval BINFORMAT_SUCCESS      Signature added.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_SIGN_BINARY)(
+  IN  BINFORMAT_CONTEXT             *Context,
+  IN  CONST BINFORMAT_CODE_SIGNATURE *Signature
+  );
+
+/**
+  Remove code signature from binary.
+
+  @param[in]   Context           Binary context.
+
+  @retval BINFORMAT_SUCCESS      Signature removed.
+  @retval BINFORMAT_ERROR_NOT_FOUND  Binary is not signed.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_REMOVE_SIGNATURE)(
+  IN  BINFORMAT_CONTEXT   *Context
+  );
+
+/**
   Create section iterator.
 
   @param[in]   Context           Binary context.
@@ -1318,6 +1431,14 @@ typedef struct {
   BINFORMAT_REMOVE_ARCH_SLICE      RemoveArchSlice;
   BINFORMAT_REPLACE_ARCH_SLICE     ReplaceArchSlice;
   BINFORMAT_EXTRACT_THIN           ExtractThin;
+
+  ///
+  /// Code signature operations (for codesign tool)
+  ///
+  BINFORMAT_GET_SIGNATURE          GetSignature;
+  BINFORMAT_VERIFY_SIGNATURE       VerifySignature;
+  BINFORMAT_SIGN_BINARY            SignBinary;
+  BINFORMAT_REMOVE_SIGNATURE       RemoveSignature;
 
   ///
   /// Iterator operations - safe iteration without raw arrays/pointers
