@@ -120,18 +120,29 @@ Binary:      01100000 00000101 00001010 00001111
               └─────────────────────────────── OP = 0x60 (FADD)
 ```
 
-**Example 8: VADD V5,V10,V15,P3** (Vector with predicate)
+**Example 8: VADD V5,V10,V15** (Vector unmasked)
 ```
-Instruction: VADD V5,V10,V15,P3
-Encoding:    0xE0 05 0A 0F 03
-Binary:      11100000 00000101 00001010 00001111 00000011
-             ─┬────── ───┬─── ───┬─── ───┬─── ───┬───
-              │         │       │       │       └─ PM = 3 (P3)
-              │         │       │       └───────── VS2 = 15 (V15)
-              │         │       └─────────────────── VS1 = 10 (V10)
-              │         └─────────────────────────── VD = 5 (V5)
-              └───────────────────────────────────── OP = 0xE0 (VADD)
-Note: Actual vector encoding may vary by implementation
+Instruction: VADD V5,V10,V15
+Encoding:    0xE0 05 0A 0F
+Binary:      11100000 00000101 00001010 00001111
+             ─┬────── ───┬─── ───┬─── ───┬───
+              │         │       │       └─ VS2 = 15 (V15)
+              │         │       └───────── VS1 = 10 (V10)
+              │         └─────────────────── VD = 5 (V5)
+              └─────────────────────────────── OP = 0xE0 (VADD)
+```
+
+**Example 9: VADD V5,V10,V15 with predicate P3** (Two-instruction sequence)
+```
+1. Set predicate:    SETP P3
+   Encoding:         0xE7 03 00 00
+
+2. Masked vector op: VADD.M V5,V10,V15
+   Encoding:         0xE1 05 0A 0F
+
+Note: Predicate-masked operations use implicit predicate register.
+The .M suffix indicates masked operation (uses current predicate from SETP).
+Alternative: Use rVP (vector predicate special register) to control masking.
 ```
 
 ## 2. Standard MMIX Opcode List
