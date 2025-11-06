@@ -73,7 +73,8 @@ COMPILER_OBJS = \
 	$(BUILD_DIR)/compiler/Lexer.o \
 	$(BUILD_DIR)/compiler/Ast.o \
 	$(BUILD_DIR)/compiler/Parser.o \
-	$(BUILD_DIR)/compiler/Sema.o
+	$(BUILD_DIR)/compiler/Sema.o \
+	$(BUILD_DIR)/compiler/IrGen.o
 
 # Default target
 all: $(ALL_TARGETS)
