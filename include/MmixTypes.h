@@ -57,6 +57,13 @@ typedef uint16_t  CHAR16;
 #define CONST const
 
 //
+// Function scope qualifiers
+//
+
+#define STATIC static
+#define EXTERN extern
+
+//
 // Return status codes
 //
 

@@ -509,50 +509,9 @@ MmixTlbFlush (
   }
 }
 
-/**
-  Walk page tables.
-
-  Performs a page table walk starting from the page table base to
-  translate a virtual address. Updates accessed and dirty bits.
-
-  @param[in,out]  MemoryState   Pointer to memory state.
-  @param[in]      VirtualAddr   Virtual address to translate.
-  @param[out]     PhysicalAddr  Pointer to receive physical address.
-  @param[out]     Permissions   Pointer to receive permissions.
-  @param[in]      SetAccessed   Update accessed bit.
-  @param[in]      SetDirty      Update dirty bit (for writes).
-
-  @retval MMIX_SUCCESS          Walk completed successfully.
-  @retval MMIX_ERROR_NOT_FOUND  Page not present.
-  @retval Others                Error during walk.
-
-**/
-MMIX_STATUS
-MmixPageTableWalk (
-  IN OUT MMIX_MEMORY_STATE  *MemoryState,
-  IN     UINT64             VirtualAddr,
-  OUT    UINT64             *PhysicalAddr,
-  OUT    UINT8              *Permissions,
-  IN     BOOLEAN            SetAccessed,
-  IN     BOOLEAN            SetDirty
-  )
-{
-  //
-  // Page table walk implementation would go here
-  // This is a simplified placeholder
-  //
-  if (MemoryState == NULL || PhysicalAddr == NULL || Permissions == NULL) {
-    return MMIX_ERROR_INVALID_PARAMETER;
-  }
-
-  //
-  // For now, identity mapping
-  //
-  *PhysicalAddr = VirtualAddr;
-  *Permissions = MMIX_MEMORY_READ | MMIX_MEMORY_WRITE | MMIX_MEMORY_EXECUTE;
-
-  return MMIX_SUCCESS;
-}
+//
+// MmixPageTableWalk is implemented in PageTable.c
+//
 
 /**
   Register memory region.

@@ -15,6 +15,8 @@
 #include <string.h>
 #include "../../include/MmixCore.h"
 #include "../../include/MmixMemory.h"
+#include "../../include/private/MmixFpu.h"
+#include "../../include/private/MmixCompressed.h"
 
 //
 // Forward declarations for instruction handlers
@@ -914,10 +916,9 @@ ExecuteFloatingPoint (
   )
 {
   //
-  // Floating-point operations would be implemented here
-  // Including IEEE 754 binary/decimal, FP8, BFloat16, etc.
+  // Call FPU implementation
   //
-  return MmixCpuRaiseException (CpuState, MmixExceptionInvalidOperation, 0);
+  return MmixFpuExecute (CpuState, Inst);
 }
 
 STATIC
@@ -983,9 +984,9 @@ ExecuteCompressed (
   )
 {
   //
-  // Compressed instruction execution would be implemented here
+  // Call compressed instruction implementation
   //
-  return MmixCpuRaiseException (CpuState, MmixExceptionInvalidOperation, 0);
+  return MmixCompressedExecute (CpuState, CompInst);
 }
 
 /**

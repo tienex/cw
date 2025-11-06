@@ -22,7 +22,10 @@ SOURCES = \
 	$(SRC_DIR)/Emulator.c \
 	$(SRC_DIR)/core/Cpu.c \
 	$(SRC_DIR)/core/Execute.c \
+	$(SRC_DIR)/core/Compressed.c \
 	$(SRC_DIR)/memory/Memory.c \
+	$(SRC_DIR)/memory/PageTable.c \
+	$(SRC_DIR)/fpu/Fpu.c \
 	$(SRC_DIR)/devices/Devices.c
 
 # Object files
