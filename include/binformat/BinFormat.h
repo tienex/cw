@@ -350,142 +350,109 @@ typedef struct _BINFORMAT_RELOCATION_ITERATOR BINFORMAT_RELOCATION_ITERATOR;
 typedef struct _BINFORMAT_ARCH_ITERATOR       BINFORMAT_ARCH_ITERATOR;
 
 ///
-/// Binary input source types
+/// Binary stream flags (can be combined with bitwise OR)
 ///
-typedef enum {
-  BinInputTypeFile = 0,      ///< Read/write from/to file path (loads entire file)
-  BinInputTypeBuffer = 1,    ///< Use existing buffer
-  BinInputTypeMmap = 2,      ///< Memory-mapped file
-  BinInputTypeAllocated = 3, ///< Allocated buffer (for creating new images)
-  BinInputTypeStream = 4     ///< Streaming file I/O (memory constrained systems)
-} BINFORMAT_INPUT_TYPE;
+#define BINFORMAT_STREAM_READ        0x0001  ///< Read access
+#define BINFORMAT_STREAM_WRITE       0x0002  ///< Write access
+#define BINFORMAT_STREAM_MMAP        0x0010  ///< Use memory mapping
+#define BINFORMAT_STREAM_STREAMING   0x0020  ///< Streaming mode (no full buffer, for memory-constrained systems)
+#define BINFORMAT_STREAM_BUFFER      0x0040  ///< External buffer (caller-owned, not freed on close)
+#define BINFORMAT_STREAM_ALLOCATED   0x0080  ///< Allocated buffer (growable, owned by stream)
 
 ///
-/// Binary input/output buffer management structure
+/// Binary stream structure for input/output operations
 ///
-/// This structure provides a unified abstraction for different input/output
-/// methods, allowing backends to avoid code duplication and support:
-/// - Regular file I/O (loading entire file)
-/// - Memory-mapped files (for large files)
+/// This structure provides a unified abstraction for different I/O methods,
+/// allowing backends to avoid code duplication and support:
+/// - Regular file I/O (loading entire file into memory)
+/// - Memory-mapped files (for large files with virtual memory)
 /// - Existing buffers (for in-memory processing)
 /// - Allocated buffers (for creating new binary images)
-/// - Streaming I/O (for memory-constrained systems)
+/// - Streaming I/O (for memory-constrained embedded systems)
+///
+/// The Flags field determines the behavior:
+/// - BINFORMAT_STREAM_READ: Read-only access
+/// - BINFORMAT_STREAM_READ | BINFORMAT_STREAM_WRITE: Read-write access
+/// - BINFORMAT_STREAM_MMAP: Use memory mapping
+/// - BINFORMAT_STREAM_STREAMING: Use streaming I/O (read/write on demand)
+/// - BINFORMAT_STREAM_BUFFER: Use external buffer (caller owns Data pointer)
+/// - BINFORMAT_STREAM_ALLOCATED: Use allocated buffer (stream owns Data pointer)
 ///
 typedef struct {
-  BINFORMAT_INPUT_TYPE  Type;            ///< Input source type
-  CHAR8                 *FilePath;       ///< File path (for File/Mmap/Stream types)
-  UINT8                 *Data;           ///< Buffer data pointer (NULL for stream mode)
-  UINT64                Size;            ///< Current data size
-  UINT64                Capacity;        ///< Allocated capacity (for resizable buffers)
-  BOOLEAN               ReadOnly;        ///< TRUE for read-only access
-  BOOLEAN               OwnBuffer;       ///< TRUE if we manage the buffer/mapping
-  INT32                 FileDescriptor;  ///< File descriptor (for mmap/stream)
-  VOID                  *MmapBase;       ///< Base address for munmap (mmap only)
-  UINT64                FilePosition;    ///< Current file position (stream mode)
-} BINFORMAT_INPUT;
+  UINT32   Flags;            ///< Stream flags (combination of BINFORMAT_STREAM_*)
+  CHAR8    *FilePath;        ///< File path (if applicable)
+  UINT8    *Data;            ///< Buffer data pointer (NULL for streaming mode)
+  UINT64   Size;             ///< Current data size
+  UINT64   Capacity;         ///< Allocated capacity (for resizable buffers)
+  INT32    FileDescriptor;   ///< File descriptor (for mmap/streaming, -1 if not used)
+  VOID     *MmapBase;        ///< Base address for munmap (mmap only, NULL if not used)
+  UINT64   FilePosition;     ///< Current file position (streaming mode)
+} BINFORMAT_STREAM;
 
 /**
-  Initialize input from file path (loads entire file into memory).
+  Initialize stream from file path.
 
-  This reads the entire file into memory. For large files or memory-constrained
-  systems, consider using BinFormatInputInitFileMmap or BinFormatInputInitFileStream.
-
-  @param[out]  Input             Pointer to input structure.
+  @param[out]  Stream            Pointer to stream structure.
   @param[in]   FilePath          Path to file.
-  @param[in]   ReadOnly          TRUE for read-only access.
+  @param[in]   Flags             Stream flags (BINFORMAT_STREAM_*).
+                                 Common combinations:
+                                 - BINFORMAT_STREAM_READ: Read-only, load entire file
+                                 - BINFORMAT_STREAM_READ | BINFORMAT_STREAM_MMAP: Read-only, memory-mapped
+                                 - BINFORMAT_STREAM_READ | BINFORMAT_STREAM_STREAMING: Read-only, streaming I/O
+                                 - BINFORMAT_STREAM_READ | BINFORMAT_STREAM_WRITE: Read-write, load entire file
 
-  @retval BINFORMAT_SUCCESS      Input initialized successfully.
+  @retval BINFORMAT_SUCCESS      Stream initialized successfully.
   @retval BINFORMAT_ERROR_*      Error occurred.
 **/
 BINFORMAT_STATUS
-BinFormatInputInitFile(
-  OUT BINFORMAT_INPUT  *Input,
-  IN  CONST CHAR8      *FilePath,
-  IN  BOOLEAN          ReadOnly
+BinFormatStreamInitFile(
+  OUT BINFORMAT_STREAM  *Stream,
+  IN  CONST CHAR8       *FilePath,
+  IN  UINT32            Flags
   );
 
 /**
-  Initialize input from file using memory mapping.
+  Initialize stream from existing buffer.
 
-  This uses mmap() to map the file into memory without loading it entirely.
-  Good for large files on systems with virtual memory.
-
-  @param[out]  Input             Pointer to input structure.
-  @param[in]   FilePath          Path to file.
-  @param[in]   ReadOnly          TRUE for read-only access.
-
-  @retval BINFORMAT_SUCCESS      Input initialized successfully.
-  @retval BINFORMAT_ERROR_*      Error occurred.
-**/
-BINFORMAT_STATUS
-BinFormatInputInitFileMmap(
-  OUT BINFORMAT_INPUT  *Input,
-  IN  CONST CHAR8      *FilePath,
-  IN  BOOLEAN          ReadOnly
-  );
-
-/**
-  Initialize input from file using streaming I/O.
-
-  This uses streaming file I/O for memory-constrained systems. Data is read
-  on-demand using BinFormatInputRead() and written using BinFormatInputWrite().
-
-  @param[out]  Input             Pointer to input structure.
-  @param[in]   FilePath          Path to file.
-  @param[in]   ReadOnly          TRUE for read-only access.
-
-  @retval BINFORMAT_SUCCESS      Input initialized successfully.
-  @retval BINFORMAT_ERROR_*      Error occurred.
-**/
-BINFORMAT_STATUS
-BinFormatInputInitFileStream(
-  OUT BINFORMAT_INPUT  *Input,
-  IN  CONST CHAR8      *FilePath,
-  IN  BOOLEAN          ReadOnly
-  );
-
-/**
-  Initialize input from existing buffer.
-
-  @param[out]  Input             Pointer to input structure.
+  @param[out]  Stream            Pointer to stream structure.
   @param[in]   Buffer            Pointer to buffer data.
   @param[in]   Size              Size of buffer.
-  @param[in]   ReadOnly          TRUE for read-only access.
+  @param[in]   Flags             Stream flags (must include BINFORMAT_STREAM_BUFFER,
+                                 optionally BINFORMAT_STREAM_READ and/or BINFORMAT_STREAM_WRITE).
 
-  @retval BINFORMAT_SUCCESS      Input initialized successfully.
+  @retval BINFORMAT_SUCCESS      Stream initialized successfully.
   @retval BINFORMAT_ERROR_*      Error occurred.
 **/
 BINFORMAT_STATUS
-BinFormatInputInitBuffer(
-  OUT BINFORMAT_INPUT  *Input,
-  IN  CONST VOID       *Buffer,
-  IN  UINT64           Size,
-  IN  BOOLEAN          ReadOnly
+BinFormatStreamInitBuffer(
+  OUT BINFORMAT_STREAM  *Stream,
+  IN  CONST VOID        *Buffer,
+  IN  UINT64            Size,
+  IN  UINT32            Flags
   );
 
 /**
-  Initialize input with allocated buffer (for creating new binary images).
+  Initialize stream with allocated buffer (for creating new binary images).
 
-  @param[out]  Input             Pointer to input structure.
+  @param[out]  Stream            Pointer to stream structure.
   @param[in]   InitialSize       Initial buffer size (0 for default).
 
-  @retval BINFORMAT_SUCCESS      Input initialized successfully.
+  @retval BINFORMAT_SUCCESS      Stream initialized successfully.
   @retval BINFORMAT_ERROR_*      Error occurred.
 **/
 BINFORMAT_STATUS
-BinFormatInputInitAllocated(
-  OUT BINFORMAT_INPUT  *Input,
-  IN  UINT64           InitialSize
+BinFormatStreamInitAllocated(
+  OUT BINFORMAT_STREAM  *Stream,
+  IN  UINT64            InitialSize
   );
 
 /**
-  Read data from input at specified offset.
+  Read data from stream at specified offset.
 
-  Works with all input types. For buffered types (File/Buffer/Mmap/Allocated),
-  this is a simple memory copy. For streaming types, this performs a file seek
-  and read operation.
+  Works with all stream types. For buffered streams, this is a memory copy.
+  For streaming types, this performs a file seek and read operation.
 
-  @param[in]  Input              Input structure.
+  @param[in]  Stream             Stream structure.
   @param[in]  Offset             Offset to read from.
   @param[out] Buffer             Buffer to read into.
   @param[in]  Size               Number of bytes to read.
@@ -494,21 +461,21 @@ BinFormatInputInitAllocated(
   @retval BINFORMAT_ERROR_*      Error occurred.
 **/
 BINFORMAT_STATUS
-BinFormatInputRead(
-  IN  BINFORMAT_INPUT  *Input,
-  IN  UINT64           Offset,
-  OUT VOID             *Buffer,
-  IN  UINT64           Size
+BinFormatStreamRead(
+  IN  BINFORMAT_STREAM  *Stream,
+  IN  UINT64            Offset,
+  OUT VOID              *Buffer,
+  IN  UINT64            Size
   );
 
 /**
-  Write data to input at specified offset.
+  Write data to stream at specified offset.
 
-  Works with writable input types. For buffered types, this is a memory copy.
+  Works with writable streams. For buffered types, this is a memory copy.
   For streaming types, this performs a file seek and write operation.
   For allocated types, automatically resizes the buffer if needed.
 
-  @param[in]  Input              Input structure.
+  @param[in]  Stream             Stream structure.
   @param[in]  Offset             Offset to write to.
   @param[in]  Buffer             Buffer to write from.
   @param[in]  Size               Number of bytes to write.
@@ -517,28 +484,28 @@ BinFormatInputRead(
   @retval BINFORMAT_ERROR_*      Error occurred.
 **/
 BINFORMAT_STATUS
-BinFormatInputWrite(
-  IN  BINFORMAT_INPUT  *Input,
-  IN  UINT64           Offset,
-  IN  CONST VOID       *Buffer,
-  IN  UINT64           Size
+BinFormatStreamWrite(
+  IN  BINFORMAT_STREAM  *Stream,
+  IN  UINT64            Offset,
+  IN  CONST VOID        *Buffer,
+  IN  UINT64            Size
   );
 
 /**
   Resize an allocated buffer.
 
-  Only works with BinInputTypeAllocated. For other types, returns error.
+  Only works with BINFORMAT_STREAM_ALLOCATED streams.
 
-  @param[in]  Input              Input structure.
+  @param[in]  Stream             Stream structure.
   @param[in]  NewSize            New buffer size.
 
   @retval BINFORMAT_SUCCESS      Buffer resized successfully.
   @retval BINFORMAT_ERROR_*      Error occurred.
 **/
 BINFORMAT_STATUS
-BinFormatInputResize(
-  IN  BINFORMAT_INPUT  *Input,
-  IN  UINT64           NewSize
+BinFormatStreamResize(
+  IN  BINFORMAT_STREAM  *Stream,
+  IN  UINT64            NewSize
   );
 
 /**
@@ -548,41 +515,41 @@ BinFormatInputResize(
   For memory-mapped files, performs msync().
   For other modes, this is a no-op.
 
-  @param[in]  Input              Input structure.
+  @param[in]  Stream             Stream structure.
 
   @retval BINFORMAT_SUCCESS      Data flushed successfully.
   @retval BINFORMAT_ERROR_*      Error occurred.
 **/
 BINFORMAT_STATUS
-BinFormatInputFlush(
-  IN  BINFORMAT_INPUT  *Input
+BinFormatStreamFlush(
+  IN  BINFORMAT_STREAM  *Stream
   );
 
 /**
   Get direct pointer to data (if available).
 
-  For buffered types (File/Buffer/Mmap/Allocated), returns pointer to data.
-  For streaming types, returns NULL (must use BinFormatInputRead/Write).
+  For buffered streams, returns pointer to data.
+  For streaming types, returns NULL (must use BinFormatStreamRead/Write).
 
-  @param[in]  Input              Input structure.
+  @param[in]  Stream             Stream structure.
 
   @return Pointer to data, or NULL if not available.
 **/
 VOID *
-BinFormatInputGetDataPointer(
-  IN  BINFORMAT_INPUT  *Input
+BinFormatStreamGetDataPointer(
+  IN  BINFORMAT_STREAM  *Stream
   );
 
 /**
-  Close and free input resources.
+  Close and free stream resources.
 
-  Closes files, unmaps memory, frees buffers as appropriate for the input type.
+  Closes files, unmaps memory, frees buffers as appropriate.
 
-  @param[in]  Input              Input structure.
+  @param[in]  Stream             Stream structure.
 **/
 VOID
-BinFormatInputClose(
-  IN  BINFORMAT_INPUT  *Input
+BinFormatStreamClose(
+  IN  BINFORMAT_STREAM  *Stream
   );
 
 ///
