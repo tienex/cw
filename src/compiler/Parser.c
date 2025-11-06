@@ -1714,9 +1714,24 @@ ParseDeclarator (
     BOOLEAN  IsConst, IsVolatile, IsRestrict, IsAtomic;
     ParseTypeQualifiers (Parser, &IsConst, &IsVolatile, &IsRestrict, &IsAtomic);
 
+    //
+    // Check for MSVC pointer size qualifiers (__ptr32, __ptr64)
+    //
+    BOOLEAN  IsPtr32 = FALSE;
+    BOOLEAN  IsPtr64 = FALSE;
+    if (Parser->CurrentToken->Type == TOK_PTR32) {
+      IsPtr32 = TRUE;
+      ParserAdvance (Parser);
+    } else if (Parser->CurrentToken->Type == TOK_PTR64) {
+      IsPtr64 = TRUE;
+      ParserAdvance (Parser);
+    }
+
     AST_TYPE  *PtrType = AstTypeCreate (AST_TYPE_POINTER);
     PtrType->Pointer.PointeeType = Type;
     PtrType->Pointer.IsRestrict = IsRestrict;
+    PtrType->Pointer.IsPtr32 = IsPtr32;
+    PtrType->Pointer.IsPtr64 = IsPtr64;
 
     //
     // Apply const/volatile/atomic qualifiers to the pointer type

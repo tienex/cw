@@ -34,6 +34,7 @@ typedef struct {
   BOOLEAN   EnableMsvc;
   BOOLEAN   EnableClang;
   BOOLEAN   EnableMetaware;
+  BOOLEAN   Mode32Bit;          // -m32 flag (32-bit compatibility mode)
 } COMPILER_OPTIONS;
 
 /**
@@ -54,6 +55,7 @@ PrintUsage (
   printf ("  -o <file>       Write output to <file> (default: a.s)\n");
   printf ("  -S              Emit assembly (default)\n");
   printf ("  -v              Verbose output\n");
+  printf ("  -m32            32-bit compatibility mode (pointers 4 bytes)\n");
   printf ("  --dump-tokens   Dump token stream\n");
   printf ("  --dump-ast      Dump abstract syntax tree\n");
   printf ("  --dump-ir       Dump intermediate representation\n");
@@ -206,12 +208,28 @@ main (
     { "msvc",        no_argument, 0, 'm' },
     { "clang",       no_argument, 0, 'c' },
     { "metaware",    no_argument, 0, 'w' },
+    { "m32",         no_argument, 0, '3' },  // 32-bit mode
     { "help",        no_argument, 0, 'h' },
     { 0, 0, 0, 0 }
   };
 
   INT32  c;
   INT32  OptionIndex;
+
+  //
+  // Handle -m32 specially (not standard getopt format)
+  //
+  for (INT32 i = 1; i < argc; i++) {
+    if (strcmp (argv[i], "-m32") == 0) {
+      Options.Mode32Bit = TRUE;
+      // Remove from argv to avoid getopt confusion
+      for (INT32 j = i; j < argc - 1; j++) {
+        argv[j] = argv[j + 1];
+      }
+      argc--;
+      i--;
+    }
+  }
 
   while ((c = getopt_long (argc, argv, "o:Svh", LongOptions, &OptionIndex)) != -1) {
     switch (c) {
@@ -244,6 +262,9 @@ main (
         break;
       case 'w':
         Options.EnableMetaware = TRUE;
+        break;
+      case '3':
+        Options.Mode32Bit = TRUE;
         break;
       case 'h':
         PrintUsage (argv[0]);
@@ -383,7 +404,7 @@ main (
     printf ("\n=== IR Generation ===\n");
   }
 
-  IrModule = IrCreateModule (Ast);
+  IrModule = IrCreateModule (Ast, Options.Mode32Bit);
 
   if (IrModule == NULL) {
     fprintf (stderr, "Error: Failed to create IR module\n");

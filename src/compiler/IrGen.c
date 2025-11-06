@@ -199,13 +199,15 @@ IrLookupSymbol (
   Create IR module from AST.
 
   @param[in]      Ast           Translation unit AST.
+  @param[in]      Mode32Bit     TRUE for 32-bit mode.
 
   @return  Pointer to IR module, or NULL on error.
 
 **/
 IR_MODULE *
 IrCreateModule (
-  IN  AST_TRANSLATION_UNIT  *Ast
+  IN  AST_TRANSLATION_UNIT  *Ast,
+  IN  BOOLEAN               Mode32Bit
   )
 {
   IR_MODULE  *Module;
@@ -219,6 +221,7 @@ IrCreateModule (
   Module->FunctionCount = 0;
   Module->Functions = NULL;
   Module->SourceFile = Ast->SourceFile;
+  Module->Mode32Bit = Mode32Bit;
 
   return Module;
 }
@@ -1247,6 +1250,7 @@ IrGenUnaryExpr (
   Compute the size in bytes of a type.
 
   @param[in]      Type          Type to compute size of.
+  @param[in]      Mode32Bit     TRUE for 32-bit mode.
 
   @return  Size in bytes, or 0 if unknown.
 
@@ -1254,7 +1258,8 @@ IrGenUnaryExpr (
 STATIC
 UINT32
 IrGetTypeSize (
-  IN  AST_TYPE  *Type
+  IN  AST_TYPE  *Type,
+  IN  BOOLEAN   Mode32Bit
   )
 {
   if (Type == NULL) {
@@ -1288,8 +1293,23 @@ IrGetTypeSize (
     case AST_TYPE_ULONG_LONG:
     case AST_TYPE_INT64:
     case AST_TYPE_DOUBLE:
-    case AST_TYPE_POINTER:
       return 8;
+
+    case AST_TYPE_POINTER:
+      //
+      // Pointer size depends on mode and __ptr64/__ptr32 qualifiers
+      // In 32-bit mode: pointers are 4 bytes unless __ptr64 (then 8)
+      // In 64-bit mode: pointers are 8 bytes unless __ptr32 (then 4)
+      //
+      if (Type->Pointer.IsPtr64) {
+        return 8;  // __ptr64 forces 64-bit pointers
+      } else if (Type->Pointer.IsPtr32) {
+        return 4;  // __ptr32 forces 32-bit pointers
+      } else if (Mode32Bit) {
+        return 4;  // Default in 32-bit mode
+      } else {
+        return 8;  // Default in 64-bit mode
+      }
 
     case AST_TYPE_LONG_DOUBLE:
     case AST_TYPE_INT128:
@@ -1297,7 +1317,7 @@ IrGetTypeSize (
 
     case AST_TYPE_ARRAY:
       {
-        UINT32  ElementSize = IrGetTypeSize (Type->Array.ElementType);
+        UINT32  ElementSize = IrGetTypeSize (Type->Array.ElementType, Mode32Bit);
         if (Type->Array.Size != NULL && Type->Array.Size->Kind == AST_EXPR_INTEGER) {
           return ElementSize * Type->Array.Size->Integer.Value;
         }
@@ -1565,7 +1585,7 @@ IrGenExpression (
           return IrConstant (0, Expr->Type, 0);
         }
 
-        Size = IrGetTypeSize (TargetType);
+        Size = IrGetTypeSize (TargetType, Context->Module->Mode32Bit);
 
         //
         // Return size as a constant

@@ -208,6 +208,7 @@ typedef struct {
   UINT32             FunctionCount;    // Number of functions
   AST_TRANSLATION_UNIT *Ast;           // Source AST
   CHAR8              *SourceFile;      // Source file name
+  BOOLEAN            Mode32Bit;        // 32-bit compatibility mode (-m32)
 } IR_MODULE;
 
 /**
@@ -232,7 +233,8 @@ typedef struct {
 **/
 IR_MODULE *
 IrCreateModule (
-  IN  AST_TRANSLATION_UNIT  *Ast
+  IN  AST_TRANSLATION_UNIT  *Ast,
+  IN  BOOLEAN               Mode32Bit
   );
 
 /**

@@ -233,6 +233,8 @@ struct _AST_TYPE {
     struct {
       AST_TYPE      *PointeeType;     // Pointer target type
       BOOLEAN       IsRestrict;
+      BOOLEAN       IsPtr64;          // __ptr64 qualifier (MSVC)
+      BOOLEAN       IsPtr32;          // __ptr32 qualifier (MSVC)
     } Pointer;
 
     struct {
