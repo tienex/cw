@@ -2393,8 +2393,8 @@ ElfGetSegment (
 
   ElfCtx = ELF_CONTEXT_FROM_BINFORMAT(Context);
 
-  SegmentCount = ElfCtx->Is64Bit ? ElfCtx->Header.Elf64->e_phnum :
-                                   ElfCtx->Header.Elf32->e_phnum;
+  SegmentCount = ElfCtx->Is64Bit ? SWAP16(ElfCtx, ElfCtx->Header.Elf64->e_phnum) :
+                                   SWAP16(ElfCtx, ElfCtx->Header.Elf32->e_phnum);
 
   if (Index >= SegmentCount) {
     return BINFORMAT_ERROR_NOT_FOUND;
@@ -2404,24 +2404,24 @@ ElfGetSegment (
 
   if (ElfCtx->Is64Bit) {
     Elf64_Phdr *Phdr = &ElfCtx->Programs.Elf64[Index];
-    Segment->Type = Phdr->p_type;
-    Segment->Flags = Phdr->p_flags;
-    Segment->FileOffset = Phdr->p_offset;
-    Segment->VirtualAddress = Phdr->p_vaddr;
-    Segment->PhysicalAddress = Phdr->p_paddr;
-    Segment->FileSize = Phdr->p_filesz;
-    Segment->MemorySize = Phdr->p_memsz;
-    Segment->Alignment = Phdr->p_align;
+    Segment->Type = SWAP32(ElfCtx, Phdr->p_type);
+    Segment->Flags = SWAP32(ElfCtx, Phdr->p_flags);
+    Segment->FileOffset = SWAP64(ElfCtx, Phdr->p_offset);
+    Segment->VirtualAddress = SWAP64(ElfCtx, Phdr->p_vaddr);
+    Segment->PhysicalAddress = SWAP64(ElfCtx, Phdr->p_paddr);
+    Segment->FileSize = SWAP64(ElfCtx, Phdr->p_filesz);
+    Segment->MemorySize = SWAP64(ElfCtx, Phdr->p_memsz);
+    Segment->Alignment = SWAP64(ElfCtx, Phdr->p_align);
   } else {
     Elf32_Phdr *Phdr = &ElfCtx->Programs.Elf32[Index];
-    Segment->Type = Phdr->p_type;
-    Segment->Flags = Phdr->p_flags;
-    Segment->FileOffset = Phdr->p_offset;
-    Segment->VirtualAddress = Phdr->p_vaddr;
-    Segment->PhysicalAddress = Phdr->p_paddr;
-    Segment->FileSize = Phdr->p_filesz;
-    Segment->MemorySize = Phdr->p_memsz;
-    Segment->Alignment = Phdr->p_align;
+    Segment->Type = SWAP32(ElfCtx, Phdr->p_type);
+    Segment->Flags = SWAP32(ElfCtx, Phdr->p_flags);
+    Segment->FileOffset = SWAP32(ElfCtx, Phdr->p_offset);
+    Segment->VirtualAddress = SWAP32(ElfCtx, Phdr->p_vaddr);
+    Segment->PhysicalAddress = SWAP32(ElfCtx, Phdr->p_paddr);
+    Segment->FileSize = SWAP32(ElfCtx, Phdr->p_filesz);
+    Segment->MemorySize = SWAP32(ElfCtx, Phdr->p_memsz);
+    Segment->Alignment = SWAP32(ElfCtx, Phdr->p_align);
   }
 
   return BINFORMAT_SUCCESS;
@@ -2549,29 +2549,33 @@ ElfGetSymbol (
   if (ElfCtx->Is64Bit) {
     Elf64_Sym *Sym = &ElfCtx->Symbols.Elf64[Index];
 
-    if (ElfCtx->SymbolStringTable != NULL && Sym->st_name < 0x10000) {
-      strncpy(Symbol->Name, ElfCtx->SymbolStringTable + Sym->st_name,
+    UINT32 st_name = SWAP32(ElfCtx, Sym->st_name);
+    if (ElfCtx->SymbolStringTable != NULL && st_name < 0x10000) {
+      strncpy(Symbol->Name, ElfCtx->SymbolStringTable + st_name,
               BINFORMAT_MAX_SYMBOL_NAME - 1);
     }
 
-    Symbol->Value = Sym->st_value;
-    Symbol->Size = Sym->st_size;
-    Symbol->Bind = ELF64_ST_BIND(Sym->st_info);
+    Symbol->Value = SWAP64(ElfCtx, Sym->st_value);
+    Symbol->Size = SWAP64(ElfCtx, Sym->st_size);
+    Symbol->Bind = ELF64_ST_BIND(Sym->st_info);  // st_info is single byte, no swap needed
     Symbol->Type = ELF64_ST_TYPE(Sym->st_info);
-    Symbol->SectionIndex = Sym->st_shndx;
+    Symbol->SectionIndex = SWAP16(ElfCtx, Sym->st_shndx);
+    Symbol->Other = Sym->st_other;  // Single byte, no swap needed
   } else {
     Elf32_Sym *Sym = &ElfCtx->Symbols.Elf32[Index];
 
-    if (ElfCtx->SymbolStringTable != NULL && Sym->st_name < 0x10000) {
-      strncpy(Symbol->Name, ElfCtx->SymbolStringTable + Sym->st_name,
+    UINT32 st_name = SWAP32(ElfCtx, Sym->st_name);
+    if (ElfCtx->SymbolStringTable != NULL && st_name < 0x10000) {
+      strncpy(Symbol->Name, ElfCtx->SymbolStringTable + st_name,
               BINFORMAT_MAX_SYMBOL_NAME - 1);
     }
 
-    Symbol->Value = Sym->st_value;
-    Symbol->Size = Sym->st_size;
-    Symbol->Bind = ELF32_ST_BIND(Sym->st_info);
+    Symbol->Value = SWAP32(ElfCtx, Sym->st_value);
+    Symbol->Size = SWAP32(ElfCtx, Sym->st_size);
+    Symbol->Bind = ELF32_ST_BIND(Sym->st_info);  // st_info is single byte, no swap needed
     Symbol->Type = ELF32_ST_TYPE(Sym->st_info);
-    Symbol->SectionIndex = Sym->st_shndx;
+    Symbol->SectionIndex = SWAP16(ElfCtx, Sym->st_shndx);
+    Symbol->Other = Sym->st_other;  // Single byte, no swap needed
   }
 
   return BINFORMAT_SUCCESS;
