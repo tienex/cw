@@ -19,6 +19,7 @@
 #include "../../include/binformat/LibAout.h"
 #include "../../include/binformat/LibMacho.h"
 #include "../../include/binformat/LibOmf.h"
+#include "../../include/binformat/LibOrf.h"
 
 /**
   Test a binary format library.
@@ -124,6 +125,7 @@ main (
   printf("  - %s v%u\n", AoutGetApi()->LibraryName, AoutGetApi()->Version);
   printf("  - %s v%u\n", MachoGetApi()->LibraryName, MachoGetApi()->Version);
   printf("  - %s v%u\n", OmfGetApi()->LibraryName, OmfGetApi()->Version);
+  printf("  - %s v%u\n", OrfGetApi()->LibraryName, OrfGetApi()->Version);
   printf("\n");
 
   //
@@ -159,6 +161,11 @@ main (
       if (Result != 0) {
         printf("Attempting with libomf...\n");
         Result = TestBinaryFormat(OmfGetApi(), argv[i]);
+      }
+
+      if (Result != 0) {
+        printf("Attempting with liborf...\n");
+        Result = TestBinaryFormat(OrfGetApi(), argv[i]);
       }
 
       if (Result != 0) {
