@@ -19,8 +19,9 @@ ASSEMBLER = $(BIN_DIR)/mmix-as
 LINKER = $(BIN_DIR)/mmix-ld
 OBJDUMP = $(BIN_DIR)/mmix-objdump
 LIBRARIAN = $(BIN_DIR)/mmix-ar
+COMPILER = $(BIN_DIR)/mmix-cc
 
-ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN)
+ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER)
 
 # Common/shared object files
 COMMON_OBJS = \
@@ -87,6 +88,7 @@ all: $(ALL_TARGETS)
 	@echo "  $(LINKER)"
 	@echo "  $(OBJDUMP)"
 	@echo "  $(LIBRARIAN)"
+	@echo "  $(COMPILER)"
 
 # Create directories
 $(BUILD_DIR):
@@ -130,6 +132,11 @@ $(OBJDUMP): $(OBJDUMP_OBJS) $(DISASM_OBJS) | $(BIN_DIR)
 $(LIBRARIAN): $(LIBRARIAN_OBJS) | $(BIN_DIR)
 	$(CC) $(LIBRARIAN_OBJS) -o $(LIBRARIAN) $(LDFLAGS)
 	@echo "Built: $(LIBRARIAN)"
+
+# Build compiler
+$(COMPILER): $(COMPILER_OBJS) $(BUILD_DIR)/compiler/CompilerMain.o | $(BIN_DIR)
+	$(CC) $(COMPILER_OBJS) $(BUILD_DIR)/compiler/CompilerMain.o -o $(COMPILER) $(LDFLAGS)
+	@echo "Built: $(COMPILER)"
 
 # Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)

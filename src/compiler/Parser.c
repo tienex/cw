@@ -1130,6 +1130,8 @@ ParseTypeSpecifiers (
   IN OUT PARSER_STATE  *Parser
   )
 {
+  fprintf (stderr, "DEBUG: ParseTypeSpecifiers ENTRY\n");
+  fflush (stderr);
   BOOLEAN  HasVoid = FALSE;
   BOOLEAN  HasChar = FALSE;
   BOOLEAN  HasShort = FALSE;
@@ -1144,10 +1146,17 @@ ParseTypeSpecifiers (
   BOOLEAN  HasComplex = FALSE;
   BOOLEAN  HasImaginary = FALSE;
 
+  fprintf (stderr, "DEBUG: Variables declared\n");
+  fflush (stderr);
+
   //
   // Parse type specifiers (can have multiple tokens like 'unsigned long long')
   //
+  fprintf (stderr, "DEBUG: About to check IsTypeSpecifier\n");
+  fflush (stderr);
   while (IsTypeSpecifier (Parser->CurrentToken->Type)) {
+    fprintf (stderr, "DEBUG: Inside while loop, token type = %d\n", Parser->CurrentToken->Type);
+    fflush (stderr);
     switch (Parser->CurrentToken->Type) {
       case TOK_VOID:
         HasVoid = TRUE;
@@ -1159,7 +1168,11 @@ ParseTypeSpecifiers (
         HasShort = TRUE;
         break;
       case TOK_INT:
+        fprintf (stderr, "DEBUG: TOK_INT case\n");
+        fflush (stderr);
         HasInt = TRUE;
+        fprintf (stderr, "DEBUG: Set HasInt\n");
+        fflush (stderr);
         break;
       case TOK_LONG:
         if (HasLong) {
@@ -1241,10 +1254,16 @@ ParseTypeSpecifiers (
         return NULL;
 
       default:
+        fprintf (stderr, "DEBUG: default case\n");
+        fflush (stderr);
         break;
     }
 
+    fprintf (stderr, "DEBUG: After switch\n");
+    fflush (stderr);
     ParserAdvance (Parser);
+    fprintf (stderr, "DEBUG: After ParserAdvance\n");
+    fflush (stderr);
   }
 
   //
@@ -1521,6 +1540,9 @@ ParserParseDeclaration (
 {
   TOKEN_LOCATION  Loc = Parser->CurrentToken->Location;
 
+  fprintf (stderr, "DEBUG: ParserParseDeclaration START\n");
+  fflush (stderr);
+
   //
   // Parse storage class specifiers
   //
@@ -1562,7 +1584,11 @@ ParserParseDeclaration (
   //
   // Parse type specifiers
   //
+  fprintf (stderr, "DEBUG: Before ParseTypeSpecifiers\n");
+  fflush (stderr);
   AST_TYPE  *BaseType = ParseTypeSpecifiers (Parser);
+  fprintf (stderr, "DEBUG: After ParseTypeSpecifiers\n");
+  fflush (stderr);
   if (BaseType == NULL) {
     ParserError (Parser, "Expected type specifier");
     return NULL;
@@ -1584,8 +1610,12 @@ ParserParseDeclaration (
   //
   // Parse declarator
   //
+  fprintf (stderr, "DEBUG: Before ParseDeclarator\n");
+  fflush (stderr);
   CHAR8     *Name = NULL;
   AST_TYPE  *Type = ParseDeclarator (Parser, BaseType, &Name);
+  fprintf (stderr, "DEBUG: After ParseDeclarator\n");
+  fflush (stderr);
 
   //
   // Determine storage class
@@ -1684,9 +1714,18 @@ ParserParseTranslationUnit (
   )
 {
   AST_TRANSLATION_UNIT  *Unit;
+  UINT32                Capacity;
 
   Unit = (AST_TRANSLATION_UNIT *)calloc (1, sizeof (AST_TRANSLATION_UNIT));
   if (Unit == NULL) {
+    return NULL;
+  }
+
+  // Allocate initial declaration array
+  Capacity = 16;
+  Unit->Declarations = (AST_DECL **)malloc (Capacity * sizeof (AST_DECL *));
+  if (Unit->Declarations == NULL) {
+    free (Unit);
     return NULL;
   }
 
@@ -1694,7 +1733,21 @@ ParserParseTranslationUnit (
   while (!ParserExpect (Parser, TOK_EOF)) {
     AST_DECL  *Decl = ParserParseDeclaration (Parser);
     if (Decl != NULL) {
+      // Grow array if needed
+      if (Unit->DeclarationCount >= Capacity) {
+        Capacity *= 2;
+        AST_DECL  **NewDecls = (AST_DECL **)realloc (Unit->Declarations, Capacity * sizeof (AST_DECL *));
+        if (NewDecls == NULL) {
+          // Cleanup and fail
+          free (Unit->Declarations);
+          free (Unit);
+          return NULL;
+        }
+        Unit->Declarations = NewDecls;
+      }
+
       // Add to translation unit
+      Unit->Declarations[Unit->DeclarationCount] = Decl;
       Unit->DeclarationCount++;
     }
 

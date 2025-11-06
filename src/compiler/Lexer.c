@@ -157,9 +157,10 @@ LexerDestroy (
     return;
   }
 
-  if (Lexer->CurrentToken != NULL) {
-    TokenDestroy (Lexer->CurrentToken);
-  }
+  //
+  // Note: We don't destroy CurrentToken here because it's owned by the Parser
+  // The Parser is responsible for destroying all tokens it receives
+  //
 
   free (Lexer);
 }
@@ -492,12 +493,9 @@ LexerNextToken (
   }
 
   //
-  // Free previous token
+  // Note: We don't destroy the previous token here because the caller (Parser)
+  // owns it and is responsible for destroying it.
   //
-  if (Lexer->CurrentToken != NULL) {
-    TokenDestroy (Lexer->CurrentToken);
-    Lexer->CurrentToken = NULL;
-  }
 
   //
   // Skip whitespace
