@@ -60,7 +60,6 @@ STATIC CONST BINFORMAT_API  mMinidumpApi = {
   .GetSegment           = MinidumpGetSegment,
   .GetSymbol            = MinidumpGetSymbol,
   .GetSymbolByName      = MinidumpGetSymbolByName,
-  .GetRelocations       = MinidumpGetRelocations,
   .WriteFile            = MinidumpWriteFile,
   .WriteMemory          = MinidumpWriteMemory,
   .AddSection           = MinidumpAddSection,

@@ -243,7 +243,6 @@ STATIC CONST BINFORMAT_API gMachoApi = {
   .GetSegment = MachoGetSegment,
   .GetSymbol = MachoGetSymbol,
   .GetSymbolByName = MachoGetSymbolByName,
-  .GetRelocations = MachoGetRelocations,
   .AddSection = MachoAddSection,
   .AddSymbol = MachoAddSymbol,
   .AddRelocation = MachoAddRelocation,

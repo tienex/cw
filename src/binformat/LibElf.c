@@ -2111,6 +2111,15 @@ ElfClose (
   free(ElfCtx);
 }
 
+//
+// Forward declaration
+//
+STATIC
+BINFORMAT_STATUS
+ElfFindSymbolTable (
+  IN  ELF_CONTEXT  *ElfCtx
+  );
+
 /**
   Get ELF header information.
 
@@ -2175,6 +2184,14 @@ ElfGetHeader (
       HeaderInfo->Architectures[i].CpuSubtype = ElfCtx->FatRecords[i].osabi;
     }
   }
+
+  //
+  // Find symbol table and set symbol count
+  //
+  if (ElfCtx->Symbols.Elf32 == NULL && ElfCtx->Symbols.Elf64 == NULL) {
+    ElfFindSymbolTable(ElfCtx);
+  }
+  HeaderInfo->SymbolCount = ElfCtx->SymbolCount;
 
   return BINFORMAT_SUCCESS;
 }
@@ -2384,8 +2401,16 @@ ElfFindSymbolTable (
   IN  ELF_CONTEXT  *ElfCtx
   )
 {
-  UINT32  SectionCount;
-  UINT32  i;
+  UINT32   SectionCount;
+  UINT32   i;
+  INT32    SymtabIndex = -1;
+  INT32    DynsymIndex = -1;
+  UINT32   SelectedIndex;
+  UINT32   sh_type;
+  UINT32   sh_link;
+  UINT64   sh_offset;
+  UINT64   sh_size;
+  UINT8    *ElfData;
 
   if (ElfCtx->Symbols.Elf32 != NULL || ElfCtx->Symbols.Elf64 != NULL) {
     return BINFORMAT_SUCCESS; // Already initialized
@@ -2394,56 +2419,72 @@ ElfFindSymbolTable (
   SectionCount = ElfCtx->Is64Bit ? ElfCtx->Header.Elf64->e_shnum :
                                    ElfCtx->Header.Elf32->e_shnum;
 
+  //
+  // First pass: find both SYMTAB and DYNSYM
+  //
   for (i = 0; i < SectionCount; i++) {
-    UINT32  sh_type;
-    UINT32  sh_link;
-    UINT64  sh_offset;
-    UINT64  sh_size;
-    UINT64  sh_entsize;
-
     if (ElfCtx->Is64Bit) {
-      Elf64_Shdr *Shdr = &ElfCtx->Sections.Elf64[i];
-      sh_type = Shdr->sh_type;
-      sh_link = Shdr->sh_link;
-      sh_offset = Shdr->sh_offset;
-      sh_size = Shdr->sh_size;
-      sh_entsize = Shdr->sh_entsize;
+      sh_type = ElfCtx->Sections.Elf64[i].sh_type;
     } else {
-      Elf32_Shdr *Shdr = &ElfCtx->Sections.Elf32[i];
-      sh_type = Shdr->sh_type;
-      sh_link = Shdr->sh_link;
-      sh_offset = Shdr->sh_offset;
-      sh_size = Shdr->sh_size;
-      sh_entsize = Shdr->sh_entsize;
+      sh_type = ElfCtx->Sections.Elf32[i].sh_type;
     }
 
-    if (sh_type == SHT_SYMTAB || sh_type == SHT_DYNSYM) {
-      UINT8 *ElfData = ElfCtx->FileData + ElfCtx->CurrentOffset;
-
-      if (ElfCtx->Is64Bit) {
-        ElfCtx->Symbols.Elf64 = (Elf64_Sym *)(ElfData + sh_offset);
-        ElfCtx->SymbolCount = (UINT32)(sh_size / sizeof(Elf64_Sym));
-      } else {
-        ElfCtx->Symbols.Elf32 = (Elf32_Sym *)(ElfData + sh_offset);
-        ElfCtx->SymbolCount = (UINT32)(sh_size / sizeof(Elf32_Sym));
-      }
-
-      // Get symbol string table
-      if (sh_link < SectionCount) {
-        UINT64 strtab_offset;
-        if (ElfCtx->Is64Bit) {
-          strtab_offset = ElfCtx->Sections.Elf64[sh_link].sh_offset;
-        } else {
-          strtab_offset = ElfCtx->Sections.Elf32[sh_link].sh_offset;
-        }
-        ElfCtx->SymbolStringTable = (CHAR8 *)(ElfData + strtab_offset);
-      }
-
-      return BINFORMAT_SUCCESS;
+    if (sh_type == SHT_SYMTAB) {
+      SymtabIndex = (INT32)i;
+      break;  // Prefer SYMTAB, stop searching
+    } else if (sh_type == SHT_DYNSYM && DynsymIndex == -1) {
+      DynsymIndex = (INT32)i;
     }
   }
 
-  return BINFORMAT_ERROR_NOT_FOUND;
+  //
+  // Prefer SYMTAB over DYNSYM (SYMTAB has all symbols, DYNSYM only has dynamic)
+  //
+  if (SymtabIndex >= 0) {
+    SelectedIndex = (UINT32)SymtabIndex;
+  } else if (DynsymIndex >= 0) {
+    SelectedIndex = (UINT32)DynsymIndex;
+  } else {
+    return BINFORMAT_ERROR_NOT_FOUND;
+  }
+
+  //
+  // Load the selected symbol table
+  //
+  if (ElfCtx->Is64Bit) {
+    Elf64_Shdr *Shdr = &ElfCtx->Sections.Elf64[SelectedIndex];
+    sh_link = Shdr->sh_link;
+    sh_offset = Shdr->sh_offset;
+    sh_size = Shdr->sh_size;
+  } else {
+    Elf32_Shdr *Shdr = &ElfCtx->Sections.Elf32[SelectedIndex];
+    sh_link = Shdr->sh_link;
+    sh_offset = Shdr->sh_offset;
+    sh_size = Shdr->sh_size;
+  }
+
+  ElfData = ElfCtx->FileData + ElfCtx->CurrentOffset;
+
+  if (ElfCtx->Is64Bit) {
+    ElfCtx->Symbols.Elf64 = (Elf64_Sym *)(ElfData + sh_offset);
+    ElfCtx->SymbolCount = (UINT32)(sh_size / sizeof(Elf64_Sym));
+  } else {
+    ElfCtx->Symbols.Elf32 = (Elf32_Sym *)(ElfData + sh_offset);
+    ElfCtx->SymbolCount = (UINT32)(sh_size / sizeof(Elf32_Sym));
+  }
+
+  // Get symbol string table
+  if (sh_link < SectionCount) {
+    UINT64 strtab_offset;
+    if (ElfCtx->Is64Bit) {
+      strtab_offset = ElfCtx->Sections.Elf64[sh_link].sh_offset;
+    } else {
+      strtab_offset = ElfCtx->Sections.Elf32[sh_link].sh_offset;
+    }
+    ElfCtx->SymbolStringTable = (CHAR8 *)(ElfData + strtab_offset);
+  }
+
+  return BINFORMAT_SUCCESS;
 }
 
 /**
@@ -3380,6 +3421,81 @@ ElfSelectArchitecture (
   return BINFORMAT_SUCCESS;
 }
 
+/**
+  Update an existing section in place.
+
+  @param[in]   Context      ELF context.
+  @param[in]   Index        Section index to update.
+  @param[in]   Section      New section data.
+
+  @retval BINFORMAT_ERROR_NOT_IMPLEMENTED  Not yet implemented.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfUpdateSection (
+  IN  BINFORMAT_CONTEXT   *Context,
+  IN  UINT32              Index,
+  IN  BINFORMAT_SECTION   *Section
+  )
+{
+  (VOID)Context;
+  (VOID)Index;
+  (VOID)Section;
+  return BINFORMAT_ERROR_NOT_IMPLEMENTED;
+}
+
+/**
+  Update an existing symbol in place.
+
+  @param[in]   Context      ELF context.
+  @param[in]   Index        Symbol index to update.
+  @param[in]   Symbol       New symbol data.
+
+  @retval BINFORMAT_ERROR_NOT_IMPLEMENTED  Not yet implemented.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfUpdateSymbol (
+  IN  BINFORMAT_CONTEXT   *Context,
+  IN  UINT32              Index,
+  IN  BINFORMAT_SYMBOL    *Symbol
+  )
+{
+  (VOID)Context;
+  (VOID)Index;
+  (VOID)Symbol;
+  return BINFORMAT_ERROR_NOT_IMPLEMENTED;
+}
+
+/**
+  Update an existing relocation in place.
+
+  @param[in]   Context          ELF context.
+  @param[in]   SectionIndex     Section containing the relocation.
+  @param[in]   RelocationIndex  Relocation index within section.
+  @param[in]   Relocation       New relocation data.
+
+  @retval BINFORMAT_ERROR_NOT_IMPLEMENTED  Not yet implemented.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfUpdateRelocation (
+  IN  BINFORMAT_CONTEXT       *Context,
+  IN  UINT32                  SectionIndex,
+  IN  UINT32                  RelocationIndex,
+  IN  BINFORMAT_RELOCATION    *Relocation
+  )
+{
+  (VOID)Context;
+  (VOID)SectionIndex;
+  (VOID)RelocationIndex;
+  (VOID)Relocation;
+  return BINFORMAT_ERROR_NOT_IMPLEMENTED;
+}
+
 //
 // ELF API Table
 //
@@ -3396,13 +3512,35 @@ STATIC CONST BINFORMAT_API gElfApi = {
   .GetSegment = ElfGetSegment,
   .GetSymbol = ElfGetSymbol,
   .GetSymbolByName = ElfGetSymbolByName,
-  .GetRelocations = ElfGetRelocations,
   .AddSection = ElfAddSection,
   .AddSymbol = ElfAddSymbol,
   .AddRelocation = ElfAddRelocation,
+  .UpdateSection = ElfUpdateSection,
+  .UpdateSymbol = ElfUpdateSymbol,
+  .UpdateRelocation = ElfUpdateRelocation,
   .WriteFile = ElfWriteFile,
   .WriteMemory = ElfWriteMemory,
-  .SelectArchitecture = ElfSelectArchitecture
+  .SelectArchitecture = ElfSelectArchitecture,
+  .CreateFat = NULL,
+  .AddArchSlice = NULL,
+  .RemoveArchSlice = NULL,
+  .ReplaceArchSlice = NULL,
+  .ExtractThin = NULL,
+  .SectionIterCreate = NULL,
+  .SectionIterNext = NULL,
+  .SectionIterFree = NULL,
+  .SymbolIterCreate = NULL,
+  .SymbolIterNext = NULL,
+  .SymbolIterFree = NULL,
+  .SegmentIterCreate = NULL,
+  .SegmentIterNext = NULL,
+  .SegmentIterFree = NULL,
+  .RelocationIterCreate = NULL,
+  .RelocationIterNext = NULL,
+  .RelocationIterFree = NULL,
+  .ArchIterCreate = NULL,
+  .ArchIterNext = NULL,
+  .ArchIterFree = NULL
 };
 
 /**

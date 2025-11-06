@@ -350,7 +350,6 @@ STATIC CONST BINFORMAT_API gOmfApi = {
   .GetSegment = OmfGetSegment,
   .GetSymbol = OmfGetSymbol,
   .GetSymbolByName = OmfGetSymbolByName,
-  .GetRelocations = OmfGetRelocations,
   .AddSection = OmfAddSection,
   .AddSymbol = OmfAddSymbol,
   .AddRelocation = OmfAddRelocation,

@@ -746,7 +746,6 @@ STATIC CONST BINFORMAT_API gCoffApi = {
   .GetSegment = CoffGetSegment,
   .GetSymbol = CoffGetSymbol,
   .GetSymbolByName = CoffGetSymbolByName,
-  .GetRelocations = CoffGetRelocations,
   .AddSection = CoffAddSection,
   .AddSymbol = CoffAddSymbol,
   .AddRelocation = CoffAddRelocation,

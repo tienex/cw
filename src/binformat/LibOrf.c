@@ -567,7 +567,6 @@ STATIC CONST BINFORMAT_API gOrfApi = {
   .GetSegment = OrfGetSegment,
   .GetSymbol = OrfGetSymbol,
   .GetSymbolByName = OrfGetSymbolByName,
-  .GetRelocations = OrfGetRelocations,
   .AddSection = OrfAddSection,
   .AddSymbol = OrfAddSymbol,
   .AddRelocation = OrfAddRelocation,

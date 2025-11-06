@@ -758,27 +758,6 @@ BINFORMAT_STATUS
   );
 
 /**
-  Get relocation information for a section.
-
-  @param[in]   Context           Binary context.
-  @param[in]   SectionIndex      Section index.
-  @param[out]  Relocations       Pointer to receive relocation array.
-  @param[out]  Count             Pointer to receive relocation count.
-
-  @retval BINFORMAT_SUCCESS      Relocations retrieved.
-  @retval BINFORMAT_ERROR_*      Error occurred.
-
-**/
-typedef
-BINFORMAT_STATUS
-(*BINFORMAT_GET_RELOCATIONS)(
-  IN  BINFORMAT_CONTEXT       *Context,
-  IN  UINT32                  SectionIndex,
-  OUT BINFORMAT_RELOCATION    **Relocations,
-  OUT UINT32                  *Count
-  );
-
-/**
   Add a new section to the binary.
 
   @param[in]   Context           Binary context.
@@ -836,6 +815,65 @@ BINFORMAT_STATUS
   );
 
 /**
+  Update an existing section in place.
+
+  @param[in]   Context           Binary context.
+  @param[in]   Index             Section index to update.
+  @param[in]   Section           New section data.
+
+  @retval BINFORMAT_SUCCESS      Section updated.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_UPDATE_SECTION)(
+  IN  BINFORMAT_CONTEXT   *Context,
+  IN  UINT32              Index,
+  IN  BINFORMAT_SECTION   *Section
+  );
+
+/**
+  Update an existing symbol in place.
+
+  @param[in]   Context           Binary context.
+  @param[in]   Index             Symbol index to update.
+  @param[in]   Symbol            New symbol data.
+
+  @retval BINFORMAT_SUCCESS      Symbol updated.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_UPDATE_SYMBOL)(
+  IN  BINFORMAT_CONTEXT   *Context,
+  IN  UINT32              Index,
+  IN  BINFORMAT_SYMBOL    *Symbol
+  );
+
+/**
+  Update an existing relocation in place.
+
+  @param[in]   Context           Binary context.
+  @param[in]   SectionIndex      Section containing the relocation.
+  @param[in]   RelocationIndex   Relocation index within section.
+  @param[in]   Relocation        New relocation data.
+
+  @retval BINFORMAT_SUCCESS      Relocation updated.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_UPDATE_RELOCATION)(
+  IN  BINFORMAT_CONTEXT       *Context,
+  IN  UINT32                  SectionIndex,
+  IN  UINT32                  RelocationIndex,
+  IN  BINFORMAT_RELOCATION    *Relocation
+  );
+
+/**
   Write binary to file.
 
   @param[in]   Context           Binary context.
@@ -888,6 +926,99 @@ BINFORMAT_STATUS
 (*BINFORMAT_SELECT_ARCHITECTURE)(
   IN  BINFORMAT_CONTEXT   *Context,
   IN  UINT32              ArchIndex
+  );
+
+/**
+  Create a new fat/universal binary (multi-architecture).
+
+  @param[out]  Context           Pointer to receive fat binary context.
+  @param[in]   FileType          File type for the fat binary.
+  @param[in]   Format            Binary format (e.g., Mach-O, ELF).
+
+  @retval BINFORMAT_SUCCESS      Fat binary created.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_CREATE_FAT)(
+  OUT BINFORMAT_CONTEXT     **Context,
+  IN  BINFORMAT_FILE_TYPE   FileType,
+  IN  CONST CHAR8           *Format
+  );
+
+/**
+  Add an architecture slice to a fat binary.
+
+  @param[in]   FatContext        Fat binary context.
+  @param[in]   SliceContext      Architecture slice to add.
+  @param[out]  ArchIndex         Pointer to receive new architecture index.
+
+  @retval BINFORMAT_SUCCESS      Slice added.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_ADD_ARCH_SLICE)(
+  IN  BINFORMAT_CONTEXT   *FatContext,
+  IN  BINFORMAT_CONTEXT   *SliceContext,
+  OUT UINT32              *ArchIndex
+  );
+
+/**
+  Remove an architecture slice from a fat binary.
+
+  @param[in]   Context           Fat binary context.
+  @param[in]   ArchIndex         Architecture index to remove.
+
+  @retval BINFORMAT_SUCCESS      Slice removed.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_REMOVE_ARCH_SLICE)(
+  IN  BINFORMAT_CONTEXT   *Context,
+  IN  UINT32              ArchIndex
+  );
+
+/**
+  Replace an architecture slice in a fat binary.
+
+  @param[in]   FatContext        Fat binary context.
+  @param[in]   ArchIndex         Architecture index to replace.
+  @param[in]   SliceContext      New architecture slice.
+
+  @retval BINFORMAT_SUCCESS      Slice replaced.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_REPLACE_ARCH_SLICE)(
+  IN  BINFORMAT_CONTEXT   *FatContext,
+  IN  UINT32              ArchIndex,
+  IN  BINFORMAT_CONTEXT   *SliceContext
+  );
+
+/**
+  Extract a thin (single-architecture) binary from a fat binary.
+
+  @param[in]   FatContext        Fat binary context.
+  @param[in]   ArchIndex         Architecture index to extract.
+  @param[out]  ThinContext       Pointer to receive thin binary context.
+
+  @retval BINFORMAT_SUCCESS      Thin binary extracted.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+typedef
+BINFORMAT_STATUS
+(*BINFORMAT_EXTRACT_THIN)(
+  IN  BINFORMAT_CONTEXT   *FatContext,
+  IN  UINT32              ArchIndex,
+  OUT BINFORMAT_CONTEXT   **ThinContext
   );
 
 /**
@@ -1157,7 +1288,6 @@ typedef struct {
   BINFORMAT_GET_SEGMENT            GetSegment;
   BINFORMAT_GET_SYMBOL             GetSymbol;
   BINFORMAT_GET_SYMBOL_BY_NAME     GetSymbolByName;
-  BINFORMAT_GET_RELOCATIONS        GetRelocations;
 
   ///
   /// Modification operations
@@ -1165,6 +1295,9 @@ typedef struct {
   BINFORMAT_ADD_SECTION            AddSection;
   BINFORMAT_ADD_SYMBOL             AddSymbol;
   BINFORMAT_ADD_RELOCATION         AddRelocation;
+  BINFORMAT_UPDATE_SECTION         UpdateSection;
+  BINFORMAT_UPDATE_SYMBOL          UpdateSymbol;
+  BINFORMAT_UPDATE_RELOCATION      UpdateRelocation;
 
   ///
   /// Output operations
@@ -1176,6 +1309,15 @@ typedef struct {
   /// Multi-architecture support
   ///
   BINFORMAT_SELECT_ARCHITECTURE    SelectArchitecture;
+
+  ///
+  /// Fat/Universal binary operations (for lipo tool)
+  ///
+  BINFORMAT_CREATE_FAT             CreateFat;
+  BINFORMAT_ADD_ARCH_SLICE         AddArchSlice;
+  BINFORMAT_REMOVE_ARCH_SLICE      RemoveArchSlice;
+  BINFORMAT_REPLACE_ARCH_SLICE     ReplaceArchSlice;
+  BINFORMAT_EXTRACT_THIN           ExtractThin;
 
   ///
   /// Iterator operations - safe iteration without raw arrays/pointers

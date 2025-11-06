@@ -227,7 +227,6 @@ STATIC CONST BINFORMAT_API gAoutApi = {
   .GetSegment = AoutGetSegment,
   .GetSymbol = AoutGetSymbol,
   .GetSymbolByName = AoutGetSymbolByName,
-  .GetRelocations = AoutGetRelocations,
   .AddSection = AoutAddSection,
   .AddSymbol = AoutAddSymbol,
   .AddRelocation = AoutAddRelocation,
