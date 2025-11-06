@@ -7,7 +7,7 @@
 
 **/
 
-#include "binformat/LibMinidump.h"
+#include "LibMinidump.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

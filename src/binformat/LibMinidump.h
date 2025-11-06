@@ -28,7 +28,7 @@
 #define __LIBMINIDUMP_H__
 
 #include "../../include/binformat/BinFormat.h"
-#include "CoreContext.h"
+#include "../../include/binformat/CoreContext.h"
 
 ///
 /// Minidump signature "MDMP" (0x504D444D in little-endian)
