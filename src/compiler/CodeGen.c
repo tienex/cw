@@ -598,8 +598,20 @@ CodeGenInstruction (
       break;
 
     case IR_STORE:
-      snprintf (Operands, sizeof (Operands), "%s,%s,0", Src1, Dst);
+      // STORE: Mem[Src1] = Src2
+      // MMIX: STO $value, $addr, 0
+      snprintf (Operands, sizeof (Operands), "%s,%s,0", Src2, Src1);
       CodeGenEmitInstr (Context, "STO", Operands);
+      break;
+
+    case IR_ALLOCA:
+      // Allocate space on stack
+      // For MMIX, we use register $254 as stack pointer
+      // ALLOCA: dst = $254; $254 = $254 - size
+      snprintf (Operands, sizeof (Operands), "%s,$254", Dst);
+      CodeGenEmitInstr (Context, "SET", Operands);
+      snprintf (Operands, sizeof (Operands), "$254,$254,%s", Src1);
+      CodeGenEmitInstr (Context, "SUBU", Operands);
       break;
 
     case IR_ADDR:

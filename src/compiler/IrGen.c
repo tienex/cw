@@ -612,10 +612,19 @@ IrGenBinaryExpr (
   IR_OPCODE       Opcode;
 
   //
-  // Generate left and right operands
+  // For assignments, handle left side specially
+  // Don't evaluate array indexing as we need the address, not the value
   //
-  Left = IrGenExpression (Context, Expr->Binary.Left);
-  Right = IrGenExpression (Context, Expr->Binary.Right);
+  BOOLEAN IsAssignment = (Expr->Binary.Op >= BIN_OP_ASSIGN && Expr->Binary.Op <= BIN_OP_SHR_ASSIGN);
+
+  if (IsAssignment && Expr->Binary.Left->Kind == AST_EXPR_INDEX) {
+    // Special handling for array assignment - don't evaluate left side yet
+    Right = IrGenExpression (Context, Expr->Binary.Right);
+  } else {
+    // Normal case - evaluate both sides
+    Left = IrGenExpression (Context, Expr->Binary.Left);
+    Right = IrGenExpression (Context, Expr->Binary.Right);
+  }
 
   //
   // Determine opcode based on operator
@@ -654,10 +663,75 @@ IrGenBinaryExpr (
     case BIN_OP_SHR_ASSIGN:
       //
       // Handle assignment operators
-      // For simple assignment (=), just move right to left
-      // For compound assignments (+=, -=, etc.), compute operation then store
+      // Special case for array indexing: arr[i] = value
       //
-      {
+      if (Expr->Binary.Left->Kind == AST_EXPR_INDEX) {
+        //
+        // Array assignment: arr[i] = value
+        // Compute address and store
+        //
+        IR_OPERAND  Array, Index, Addr, FinalValue;
+
+        Array = IrGenExpression (Context, Expr->Binary.Left->Index.Array);
+        Index = IrGenExpression (Context, Expr->Binary.Left->Index.Index);
+
+        // Compute address: addr = array + index
+        Addr = IrAllocReg (Context->CurrentFunc, Expr->Type);
+        Instr = IrCreateInstruction (IR_ADD);
+        Instr->Dst = Addr;
+        Instr->Src1 = Array;
+        Instr->Src2 = Index;
+        IrAppendInstruction (Context->CurrentBlock, Instr);
+
+        if (Expr->Binary.Op == BIN_OP_ASSIGN) {
+          // Simple assignment
+          FinalValue = Right;
+        } else {
+          // Compound assignment - need to load first
+          IR_OPERAND  OldValue;
+          IR_OPCODE   CompoundOp;
+
+          switch (Expr->Binary.Op) {
+            case BIN_OP_ADD_ASSIGN: CompoundOp = IR_ADD; break;
+            case BIN_OP_SUB_ASSIGN: CompoundOp = IR_SUB; break;
+            case BIN_OP_MUL_ASSIGN: CompoundOp = IR_MUL; break;
+            case BIN_OP_DIV_ASSIGN: CompoundOp = IR_DIV; break;
+            case BIN_OP_MOD_ASSIGN: CompoundOp = IR_MOD; break;
+            case BIN_OP_AND_ASSIGN: CompoundOp = IR_AND; break;
+            case BIN_OP_OR_ASSIGN:  CompoundOp = IR_OR; break;
+            case BIN_OP_XOR_ASSIGN: CompoundOp = IR_XOR; break;
+            case BIN_OP_SHL_ASSIGN: CompoundOp = IR_SHL; break;
+            case BIN_OP_SHR_ASSIGN: CompoundOp = IR_SHR; break;
+            default:                CompoundOp = IR_ADD; break;
+          }
+
+          // Load current value
+          OldValue = IrAllocReg (Context->CurrentFunc, Expr->Type);
+          Instr = IrCreateInstruction (IR_LOAD);
+          Instr->Dst = OldValue;
+          Instr->Src1 = Addr;
+          IrAppendInstruction (Context->CurrentBlock, Instr);
+
+          // Compute new value
+          FinalValue = IrAllocReg (Context->CurrentFunc, Expr->Type);
+          Instr = IrCreateInstruction (CompoundOp);
+          Instr->Dst = FinalValue;
+          Instr->Src1 = OldValue;
+          Instr->Src2 = Right;
+          IrAppendInstruction (Context->CurrentBlock, Instr);
+        }
+
+        // Store to array
+        Instr = IrCreateInstruction (IR_STORE);
+        Instr->Src1 = Addr;
+        Instr->Src2 = FinalValue;
+        IrAppendInstruction (Context->CurrentBlock, Instr);
+
+        return FinalValue;
+      } else {
+        //
+        // Regular assignment to variable
+        //
         IR_OPERAND  FinalValue;
 
         if (Expr->Binary.Op == BIN_OP_ASSIGN) {
@@ -1319,10 +1393,43 @@ IrGenStatement (
       for (UINT32 i = 0; i < Stmt->Decl.DeclarationCount; i++) {
         AST_DECL  *Decl = Stmt->Decl.Declarations[i];
         if (Decl != NULL && Decl->Kind == AST_DECL_VAR) {
+          IR_OPERAND  VarOp;
+
           //
-          // Allocate register for local variable
+          // Check if this is an array declaration
           //
-          IR_OPERAND  VarOp = IrAllocReg (Context->CurrentFunc, Decl->Type);
+          if (Decl->Type != NULL && Decl->Type->Kind == AST_TYPE_ARRAY) {
+            //
+            // Array declaration - allocate space on stack
+            // Use ALLOCA to allocate array_size * element_size bytes
+            //
+            IR_INSTRUCTION  *AllocaInstr;
+            IR_OPERAND      Size;
+            UINT64          ArraySize = 0;
+
+            // Get array size (TODO: handle dynamic arrays)
+            if (Decl->Type->Array.Size != NULL &&
+                Decl->Type->Array.Size->Kind == AST_EXPR_INTEGER) {
+              ArraySize = Decl->Type->Array.Size->Integer.Value;
+            }
+
+            // For now, assume element size is 8 bytes (octa)
+            Size = IrConstant (ArraySize * 8, Decl->Type);
+
+            // Allocate result register to hold array address
+            VarOp = IrAllocReg (Context->CurrentFunc, Decl->Type);
+
+            // Generate ALLOCA instruction
+            AllocaInstr = IrCreateInstruction (IR_ALLOCA);
+            AllocaInstr->Dst = VarOp;
+            AllocaInstr->Src1 = Size;
+            IrAppendInstruction (Context->CurrentBlock, AllocaInstr);
+          } else {
+            //
+            // Regular scalar variable - allocate register
+            //
+            VarOp = IrAllocReg (Context->CurrentFunc, Decl->Type);
+          }
 
           //
           // Add to function's symbol table
@@ -1339,9 +1446,10 @@ IrGenStatement (
           }
 
           //
-          // Generate initializer if present
+          // Generate initializer if present (only for scalars)
           //
-          if (Decl->Var.Initializer != NULL) {
+          if (Decl->Var.Initializer != NULL &&
+              (Decl->Type == NULL || Decl->Type->Kind != AST_TYPE_ARRAY)) {
             IR_OPERAND       InitValue;
             IR_INSTRUCTION  *StoreInstr;
 
