@@ -19,7 +19,7 @@
 #ifndef __LIBMACHO_H__
 #define __LIBMACHO_H__
 
-#include "BinFormat.h"
+#include "../../include/binformat/BinFormat.h"
 
 ///
 /// Mach-O magic numbers

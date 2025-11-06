@@ -22,7 +22,7 @@
 #ifndef __LIBOMF_H__
 #define __LIBOMF_H__
 
-#include "BinFormat.h"
+#include "../../include/binformat/BinFormat.h"
 
 ///
 /// MZ magic number

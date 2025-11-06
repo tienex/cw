@@ -51,6 +51,8 @@ COMMON_OBJS = \
 
 # Binary format library objects
 BINFORMAT_LIB_OBJS = \
+	$(BUILD_DIR)/binformat/BinFormatInput.o \
+	$(BUILD_DIR)/binformat/BinFormatHelpers.o \
 	$(BUILD_DIR)/binformat/LibElf.o \
 	$(BUILD_DIR)/binformat/LibCoff.o \
 	$(BUILD_DIR)/binformat/LibAout.o \

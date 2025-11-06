@@ -28,7 +28,7 @@
 #ifndef __LIBAOUT_H__
 #define __LIBAOUT_H__
 
-#include "BinFormat.h"
+#include "../../include/binformat/BinFormat.h"
 
 ///
 /// a.out magic numbers (octal notation)

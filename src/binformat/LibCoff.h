@@ -24,7 +24,7 @@
 #ifndef __LIBCOFF_H__
 #define __LIBCOFF_H__
 
-#include "BinFormat.h"
+#include "../../include/binformat/BinFormat.h"
 
 ///
 /// COFF magic numbers

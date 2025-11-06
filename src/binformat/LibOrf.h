@@ -30,7 +30,7 @@
 #ifndef __LIBORF_H__
 #define __LIBORF_H__
 
-#include "BinFormat.h"
+#include "../../include/binformat/BinFormat.h"
 
 ///
 /// PEF (Preferred Executable Format) magic

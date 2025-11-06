@@ -27,7 +27,7 @@
 #ifndef __LIBMINIDUMP_H__
 #define __LIBMINIDUMP_H__
 
-#include "BinFormat.h"
+#include "../../include/binformat/BinFormat.h"
 #include "CoreContext.h"
 
 ///

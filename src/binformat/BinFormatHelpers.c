@@ -205,7 +205,7 @@ BinFormatGetMachineName(
     case BinMachine65832:         return "65832";
     case BinMachineMCore:         return "MCore";
     case BinMachineTriCore:       return "TriCore";
-    case BinMachineWebAssembly:   return "WebAssembly";
+    case BinMachineWASM:          return "WebAssembly";
     default:                      return "Unknown";
   }
 }

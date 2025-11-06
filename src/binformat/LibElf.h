@@ -19,7 +19,7 @@
 #ifndef __LIBELF_H__
 #define __LIBELF_H__
 
-#include "BinFormat.h"
+#include "../../include/binformat/BinFormat.h"
 
 ///
 /// ELF magic number
