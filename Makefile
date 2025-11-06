@@ -20,8 +20,9 @@ LINKER = $(BIN_DIR)/mmix-ld
 OBJDUMP = $(BIN_DIR)/mmix-objdump
 LIBRARIAN = $(BIN_DIR)/mmix-ar
 COMPILER = $(BIN_DIR)/mmix-cc
+FILECHECK = $(BIN_DIR)/mmix-filecheck
 
-ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER)
+ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER) $(FILECHECK)
 
 # Common/shared object files
 COMMON_OBJS = \
@@ -71,6 +72,10 @@ OBJDUMP_OBJS = \
 LIBRARIAN_OBJS = \
 	$(BUILD_DIR)/tools/Librarian.o
 
+# FileCheck objects
+FILECHECK_OBJS = \
+	$(BUILD_DIR)/tools/FileCheck.o
+
 # Compiler objects
 COMPILER_OBJS = \
 	$(BUILD_DIR)/compiler/Token.o \
@@ -92,6 +97,7 @@ all: $(ALL_TARGETS)
 	@echo "  $(OBJDUMP)"
 	@echo "  $(LIBRARIAN)"
 	@echo "  $(COMPILER)"
+	@echo "  $(FILECHECK)"
 
 # Create directories
 $(BUILD_DIR):
@@ -140,6 +146,11 @@ $(LIBRARIAN): $(LIBRARIAN_OBJS) | $(BIN_DIR)
 $(COMPILER): $(COMPILER_OBJS) $(BUILD_DIR)/compiler/CompilerMain.o | $(BIN_DIR)
 	$(CC) $(COMPILER_OBJS) $(BUILD_DIR)/compiler/CompilerMain.o -o $(COMPILER) $(LDFLAGS)
 	@echo "Built: $(COMPILER)"
+
+# Build FileCheck
+$(FILECHECK): $(FILECHECK_OBJS) | $(BIN_DIR)
+	$(CC) $(FILECHECK_OBJS) -o $(FILECHECK) $(LDFLAGS)
+	@echo "Built: $(FILECHECK)"
 
 # Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
