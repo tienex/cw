@@ -1110,7 +1110,7 @@ IrGenDeclaration (
 
     //
     // Add parameters to symbol table
-    // MMIX calling convention: parameters are in registers $0, $1, $2, ...
+    // GCC MMIX ABI: parameters are in registers $231-$246 (virtual regs mapped by code gen)
     //
     if (Decl->Function.Parameters != NULL) {
       for (UINT32 i = 0; i < Decl->Function.ParameterCount; i++) {

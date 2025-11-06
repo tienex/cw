@@ -541,11 +541,11 @@ CodeGenInstruction (
     case IR_CALL:
       {
         //
-        // Set up arguments in registers $0, $1, $2, ...
-        // MMIX calling convention: arguments in $0-$N
+        // Set up arguments in registers $231-$246
+        // GCC MMIX ABI: First 16 args in $231+, rest on stack
         //
         if (Instr->Args != NULL && Instr->ArgCount > 0) {
-          for (UINT32 i = 0; i < Instr->ArgCount; i++) {
+          for (UINT32 i = 0; i < Instr->ArgCount && i < 16; i++) {
             CHAR8  ArgReg[32];
             CHAR8  ArgOperand[256];
 
@@ -555,11 +555,18 @@ CodeGenInstruction (
             CodeGenGetOperand (Context, &Instr->Args[i], ArgOperand, sizeof (ArgOperand));
 
             //
-            // Move argument to register $i
+            // Move argument to register $231+i (GCC MMIX calling convention)
             //
-            snprintf (ArgReg, sizeof (ArgReg), "$%u", i);
+            snprintf (ArgReg, sizeof (ArgReg), "$%u", 231 + i);
             snprintf (Operands, sizeof (Operands), "%s,%s", ArgReg, ArgOperand);
             CodeGenEmitInstr (Context, "SET", Operands);
+          }
+
+          //
+          // TODO: Handle more than 16 arguments (push to stack)
+          //
+          if (Instr->ArgCount > 16) {
+            fprintf (stderr, "Warning: Functions with >16 arguments not yet supported\n");
           }
         }
 
@@ -570,10 +577,11 @@ CodeGenInstruction (
         CodeGenEmitInstr (Context, "PUSHJ", Operands);
 
         //
-        // Move return value to destination
+        // Move return value from $231 to destination
+        // GCC MMIX ABI: return values in $231
         //
         if (Instr->Dst.Type != IR_OPERAND_NONE) {
-          snprintf (Operands, sizeof (Operands), "%s,$255", Dst);
+          snprintf (Operands, sizeof (Operands), "%s,$231", Dst);
           CodeGenEmitInstr (Context, "SET", Operands);
         }
       }
@@ -582,9 +590,9 @@ CodeGenInstruction (
     case IR_RET:
       if (Instr->Src1.Type != IR_OPERAND_NONE) {
         //
-        // Move return value to $255
+        // Move return value to $231 (GCC MMIX ABI)
         //
-        snprintf (Operands, sizeof (Operands), "$255,%s", Src1);
+        snprintf (Operands, sizeof (Operands), "$231,%s", Src1);
         CodeGenEmitInstr (Context, "SET", Operands);
       }
       CodeGenEmitEpilogue (Context, Context->CurrentFunc);

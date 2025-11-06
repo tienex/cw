@@ -641,22 +641,25 @@ Value:   [LSB]                             [MSB]
 
 ## 10. Application Binary Interface (ABI)
 
+Based on GCC's MMIX implementation and MMIXware conventions.
+
 ### 10.1 Register Usage Convention
 
-#### 10.1.1 General-Purpose Registers (64-bit ABI)
+#### 10.1.1 General-Purpose Registers (GCC GNU ABI)
 
-| Register | Name | Usage | Preserved |
-|----------|------|-------|-----------|
-| $0 | zero | Constant zero | N/A |
-| $1-$8 | a0-a7 | Function arguments / return values | Caller |
-| $9-$15 | t0-t6 | Temporary registers | Caller |
-| $16-$23 | s0-s7 | Saved registers | Callee |
-| $24 | gp | Global pointer (optional) | Callee |
-| $25 | tp | Thread pointer | Callee |
-| $252 | fp | Frame pointer (optional) | Callee |
-| $253 | ra | Return address | Caller |
-| $254 | sp | Stack pointer | Callee |
-| $255 | — | Reserved for OS/kernel | Special |
+| Register Range | Usage | Preserved |
+|----------------|-------|-----------|
+| $0-$14 | Callee-saved (preserved across calls) | Callee |
+| $15 | Register stack hole (reserved) | N/A |
+| $16-$31 | Argument passing for MMIXware ABI | Varies |
+| $32-$230 | Caller-saved (scratch registers) | Caller |
+| $231-$246 | Argument passing for GNU ABI | Caller |
+| $247-$250 | Caller-saved | Caller |
+| $251 | Structure value pointer (MMIX_STRUCT_VALUE_REGNUM) | Special |
+| $252 | Static chain (nested functions) | Special |
+| $253 | Frame pointer (FP) | Callee |
+| $254 | Stack pointer (SP) - fixed | Callee |
+| $255 | Return register / temporary | Caller |
 
 #### 10.1.2 Floating-Point Registers
 
@@ -693,52 +696,49 @@ Value:   [LSB]                             [MSB]
 | rX | Execution | Faulting instruction |
 | rY, rZ | Operands | Exception operands |
 
-### 10.2 Function Calling Convention
+### 10.2 Function Calling Convention (GCC GNU ABI)
 
 #### 10.2.1 Parameter Passing
 
 **Integer / Pointer Arguments:**
-- First 8 arguments: $1-$8 (a0-a7)
+- Argument registers: Start at $231 (rGO)
+- First 16 arguments: $231-$246
 - Additional arguments: Stack (16-byte aligned)
 
 **Floating-Point Arguments:**
-- First 8 FP arguments: F1-F8
+- First 16 FP arguments: F231-F246
 - Additional FP arguments: Stack
 
 **Vector Arguments:**
-- First 8 vector arguments: V1-V8
+- First 16 vector arguments: V231-V246
 - Additional vector arguments: Stack (must be 16-byte aligned)
 
 **Large Structures** (> 8 bytes):
-- Passed by reference (pointer in argument register)
+- Passed by reference through $251 (MMIX_STRUCT_VALUE_REGNUM)
 - Caller allocates space
 - Caller responsible for copying if needed
 
 **Variadic Functions:**
-- Named arguments follow normal rules
-- Variadic arguments always on stack
+- All arguments passed on stack
+- Named arguments follow normal rules before va_start
 - Floating-point values passed in integer registers when mixed with integers
 
 #### 10.2.2 Return Values
 
 **Integer / Pointer Returns:**
-- Single value: $1 (a0)
-- Pair (128-bit): $1-$2 (a0-a1)
-- Quad (256-bit): $1-$4 (a0-a3)
+- Single value: $231
+- Large structures: Passed by reference through $251
 
 **Floating-Point Returns:**
-- Single FP value: F1
-- Multiple FP values: F1-F4
-- Complex: Real in F1, Imaginary in F2
+- Single FP value: F231
+- Complex: Real in F231, Imaginary in F232
 
 **Vector Returns:**
-- Single vector: V1
-- Multiple vectors: V1-V4
+- Single vector: V231
 
 **Structures** (by value):
-- ≤ 8 bytes: $1
-- ≤ 16 bytes: $1-$2
-- ≤ 32 bytes: $1-$4
+- Small structures (≤ 8 bytes): $231
+- Larger structures: By reference through $251
 - > 32 bytes: Returned via hidden pointer (passed in $1 by caller)
 
 #### 10.2.3 Stack Frame Layout (Detailed)
