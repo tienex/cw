@@ -141,115 +141,6 @@ GetQemuEmulator (
   return NULL;
 }
 
-/**
-  Extract thin slice from fat binary to temporary file.
-
-  @param[in]  BinaryPath  Path to fat binary.
-  @param[in]  Arch        Architecture to extract.
-  @param[out] ThinPath    Path to extracted thin binary.
-
-  @retval 0  Success.
-  @retval 1  Error.
-**/
-STATIC
-INT32
-ExtractThinSlice (
-  IN  CONST CHAR8  *BinaryPath,
-  IN  CONST CHAR8  *Arch,
-  OUT CHAR8        *ThinPath,
-  IN  size_t       ThinPathSize
-  )
-{
-  CONST BINFORMAT_API    *Api;
-  BINFORMAT_CONTEXT      *FatContext;
-  BINFORMAT_CONTEXT      *ThinContext;
-  BINFORMAT_STATUS       Status;
-  BINFORMAT_HEADER_INFO  HeaderInfo;
-  UINT32                 ArchIndex;
-  UINT32                 i;
-  BOOLEAN                Found = FALSE;
-
-  //
-  // Detect file format
-  //
-  Api = BinFormatDetectFile (BinaryPath, &FatContext, TRUE);
-  if (Api == NULL) {
-    fprintf (stderr, "arch: %s: cannot detect file format\n", BinaryPath);
-    return 1;
-  }
-
-  //
-  // Get header to find architecture index
-  //
-  Status = Api->GetHeader (FatContext, &HeaderInfo);
-  if (BINFORMAT_IS_ERROR (Status)) {
-    fprintf (stderr, "arch: %s: cannot get header\n", BinaryPath);
-    Api->Close (FatContext);
-    return 1;
-  }
-
-  //
-  // Find architecture index
-  //
-  for (i = 0; i < HeaderInfo.ArchitectureCount; i++) {
-    if (ArchNamesMatch (Arch, BinFormatGetMachineName (HeaderInfo.Architectures[i].Machine))) {
-      ArchIndex = i;
-      Found = TRUE;
-      break;
-    }
-  }
-
-  if (!Found) {
-    fprintf (stderr, "arch: %s: architecture %s not found\n", BinaryPath, Arch);
-    Api->Close (FatContext);
-    return 1;
-  }
-
-  //
-  // Check if ExtractThin is supported
-  //
-  if (Api->ExtractThin == NULL) {
-    fprintf (stderr, "arch: %s: thin extraction not supported\n", BinaryPath);
-    Api->Close (FatContext);
-    return 1;
-  }
-
-  //
-  // Extract thin slice
-  //
-  Status = Api->ExtractThin (FatContext, ArchIndex, &ThinContext);
-  if (BINFORMAT_IS_ERROR (Status)) {
-    fprintf (stderr, "arch: failed to extract %s slice from %s\n", Arch, BinaryPath);
-    Api->Close (FatContext);
-    return 1;
-  }
-
-  //
-  // Create temporary file path
-  //
-  snprintf (ThinPath, ThinPathSize, "/tmp/arch_thin_%d", getpid ());
-
-  //
-  // Write thin slice to file
-  //
-  if (Api->WriteFile == NULL) {
-    fprintf (stderr, "arch: WriteFile not supported\n");
-    Api->Close (ThinContext);
-    Api->Close (FatContext);
-    return 1;
-  }
-
-  Status = Api->WriteFile (ThinContext, ThinPath);
-  if (BINFORMAT_IS_ERROR (Status)) {
-    fprintf (stderr, "arch: failed to write thin slice to %s\n", ThinPath);
-    Api->Close (ThinContext);
-    Api->Close (FatContext);
-    return 1;
-  }
-
-  Api->Close (ThinContext);
-  Api->Close (FatContext);
-  return 0;
 }
 
 /**
@@ -335,11 +226,23 @@ ExecuteWithArch (
   }
 
   //
-  // Determine if emulation is needed
+  // Determine if emulation is needed (only on Linux via QEMU)
   //
-  if (!ArchNamesMatch (Arch, CurrentArch) || gOptions.Emulated) {
+#ifdef __linux__
+  BOOLEAN NeedEmulation = !ArchNamesMatch (Arch, CurrentArch) || gOptions.Emulated;
+#else
+  BOOLEAN NeedEmulation = !ArchNamesMatch (Arch, CurrentArch);
+  // gOptions.Emulated is a no-op on non-Linux systems
+#endif
+
+  if (NeedEmulation) {
+#ifndef __linux__
+    fprintf (stderr, "arch: cannot execute %s binaries on this platform\n", Arch);
+    Api->Close (FatContext);
+    return 1;
+#else
     //
-    // Need emulation via QEMU
+    // Need emulation via QEMU (Linux only)
     //
     QemuBin = GetQemuEmulator (Arch);
     if (QemuBin == NULL) {
@@ -445,6 +348,7 @@ ExecuteWithArch (
       close (fd);
     }
     return 1;
+#endif  // __linux__
   }
 
   //
@@ -598,7 +502,7 @@ main (
       printf ("\n");
       printf ("Options:\n");
       printf ("  -arch <arch>  Execute with specified architecture\n");
-      printf ("  -emulated     Force emulation via QEMU\n");
+      printf ("  -emulated     Force emulation via QEMU (Linux only, no-op elsewhere)\n");
       printf ("  -h, --help    Show this help\n");
       printf ("\n");
       printf ("Examples:\n");
