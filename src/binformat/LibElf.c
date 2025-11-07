@@ -2616,32 +2616,231 @@ ElfGetSymbolByName (
   return BINFORMAT_ERROR_NOT_FOUND;
 }
 
+//
+// ELF Relocation Type Constants (x86-64)
+//
+#define R_X86_64_NONE            0
+#define R_X86_64_64              1
+#define R_X86_64_PC32            2
+#define R_X86_64_GOT32           3
+#define R_X86_64_PLT32           4
+#define R_X86_64_COPY            5
+#define R_X86_64_GLOB_DAT        6
+#define R_X86_64_JUMP_SLOT       7
+#define R_X86_64_RELATIVE        8
+#define R_X86_64_GOTPCREL        9
+#define R_X86_64_32              10
+#define R_X86_64_32S             11
+#define R_X86_64_16              12
+#define R_X86_64_PC16            13
+#define R_X86_64_8               14
+#define R_X86_64_PC8             15
+#define R_X86_64_SIZE32          32
+#define R_X86_64_SIZE64          33
+#define R_X86_64_IRELATIVE       37
+
+//
+// ELF Relocation Type Constants (i386)
+//
+#define R_386_NONE               0
+#define R_386_32                 1
+#define R_386_PC32               2
+#define R_386_GOT32              3
+#define R_386_PLT32              4
+#define R_386_COPY               5
+#define R_386_GLOB_DAT           6
+#define R_386_JMP_SLOT           7
+#define R_386_RELATIVE           8
+#define R_386_GOTOFF             9
+#define R_386_GOTPC              10
+#define R_386_16                 20
+#define R_386_PC16               21
+#define R_386_8                  22
+#define R_386_PC8                23
+#define R_386_SIZE32             38
+#define R_386_IRELATIVE          42
+
+//
+// ELF Relocation Type Constants (ARM)
+//
+#define R_ARM_NONE               0
+#define R_ARM_PC24               1
+#define R_ARM_ABS32              2
+#define R_ARM_REL32              3
+#define R_ARM_CALL               28
+#define R_ARM_JUMP24             29
+#define R_ARM_GLOB_DAT           21
+#define R_ARM_JUMP_SLOT          22
+#define R_ARM_RELATIVE           23
+#define R_ARM_GOTOFF             24
+#define R_ARM_GOTPC              25
+#define R_ARM_GOT32              26
+#define R_ARM_PLT32              27
+
+//
+// ELF Relocation Type Constants (ARM64/AArch64)
+//
+#define R_AARCH64_NONE           0
+#define R_AARCH64_ABS64          257
+#define R_AARCH64_ABS32          258
+#define R_AARCH64_ABS16          259
+#define R_AARCH64_PREL64         260
+#define R_AARCH64_PREL32         261
+#define R_AARCH64_PREL16         262
+#define R_AARCH64_CALL26         283
+#define R_AARCH64_JUMP26         282
+#define R_AARCH64_ADR_PREL_PG_HI21 275
+#define R_AARCH64_ADD_ABS_LO12_NC 277
+#define R_AARCH64_GLOB_DAT       1025
+#define R_AARCH64_JUMP_SLOT      1026
+#define R_AARCH64_RELATIVE       1027
+#define R_AARCH64_IRELATIVE      1032
+
 /**
-  Get relocations for a section.
+  Map ELF relocation type to universal relocation type.
+
+  @param[in]   Machine       ELF machine type.
+  @param[in]   ElfType       ELF-specific relocation type.
+
+  @return Universal relocation type.
+**/
+STATIC
+BINFORMAT_RELOC_TYPE
+ElfMapRelocType (
+  IN  UINT16  Machine,
+  IN  UINT32  ElfType
+  )
+{
+  switch (Machine) {
+    case EM_X86_64:
+      switch (ElfType) {
+        case R_X86_64_NONE:      return BinRelocNone;
+        case R_X86_64_64:        return BinRelocAbsolute64;
+        case R_X86_64_PC32:      return BinRelocPCRelative32;
+        case R_X86_64_GOT32:     return BinRelocGOTOffset32;
+        case R_X86_64_PLT32:     return BinRelocPLT32;
+        case R_X86_64_COPY:      return BinRelocCopy;
+        case R_X86_64_GLOB_DAT:  return BinRelocGlobDat;
+        case R_X86_64_JUMP_SLOT: return BinRelocJumpSlot;
+        case R_X86_64_RELATIVE:  return BinRelocRelative64;
+        case R_X86_64_GOTPCREL:  return BinRelocGOTPCRelative32;
+        case R_X86_64_32:        return BinRelocAbsolute32;
+        case R_X86_64_32S:       return BinRelocAbsolute32;
+        case R_X86_64_16:        return BinRelocAbsolute16;
+        case R_X86_64_PC16:      return BinRelocPCRelative16;
+        case R_X86_64_8:         return BinRelocAbsolute8;
+        case R_X86_64_PC8:       return BinRelocPCRelative8;
+        case R_X86_64_SIZE32:    return BinRelocSize32;
+        case R_X86_64_SIZE64:    return BinRelocSize64;
+        case R_X86_64_IRELATIVE: return BinRelocIRelative;
+        default:                 return BinRelocFormatSpecific;
+      }
+
+    case EM_386:
+      switch (ElfType) {
+        case R_386_NONE:         return BinRelocNone;
+        case R_386_32:           return BinRelocAbsolute32;
+        case R_386_PC32:         return BinRelocPCRelative32;
+        case R_386_GOT32:        return BinRelocGOTOffset32;
+        case R_386_PLT32:        return BinRelocPLT32;
+        case R_386_COPY:         return BinRelocCopy;
+        case R_386_GLOB_DAT:     return BinRelocGlobDat;
+        case R_386_JMP_SLOT:     return BinRelocJumpSlot;
+        case R_386_RELATIVE:     return BinRelocRelative32;
+        case R_386_GOTOFF:       return BinRelocGOTOffset32;
+        case R_386_GOTPC:        return BinRelocGOTPCRelative32;
+        case R_386_16:           return BinRelocAbsolute16;
+        case R_386_PC16:         return BinRelocPCRelative16;
+        case R_386_8:            return BinRelocAbsolute8;
+        case R_386_PC8:          return BinRelocPCRelative8;
+        case R_386_SIZE32:       return BinRelocSize32;
+        case R_386_IRELATIVE:    return BinRelocIRelative;
+        default:                 return BinRelocFormatSpecific;
+      }
+
+    case EM_ARM:
+      switch (ElfType) {
+        case R_ARM_NONE:         return BinRelocNone;
+        case R_ARM_PC24:         return BinRelocBranch24;
+        case R_ARM_ABS32:        return BinRelocAbsolute32;
+        case R_ARM_REL32:        return BinRelocRelative32;
+        case R_ARM_CALL:         return BinRelocBranch24;
+        case R_ARM_JUMP24:       return BinRelocBranch24;
+        case R_ARM_GLOB_DAT:     return BinRelocGlobDat;
+        case R_ARM_JUMP_SLOT:    return BinRelocJumpSlot;
+        case R_ARM_RELATIVE:     return BinRelocRelative32;
+        case R_ARM_GOTOFF:       return BinRelocGOTOffset32;
+        case R_ARM_GOTPC:        return BinRelocGOTPCRelative32;
+        case R_ARM_GOT32:        return BinRelocGOTOffset32;
+        case R_ARM_PLT32:        return BinRelocPLT32;
+        default:                 return BinRelocFormatSpecific;
+      }
+
+    case EM_AARCH64:
+      switch (ElfType) {
+        case R_AARCH64_NONE:               return BinRelocNone;
+        case R_AARCH64_ABS64:              return BinRelocAbsolute64;
+        case R_AARCH64_ABS32:              return BinRelocAbsolute32;
+        case R_AARCH64_ABS16:              return BinRelocAbsolute16;
+        case R_AARCH64_PREL64:             return BinRelocPCRelative64;
+        case R_AARCH64_PREL32:             return BinRelocPCRelative32;
+        case R_AARCH64_PREL16:             return BinRelocPCRelative16;
+        case R_AARCH64_CALL26:             return BinRelocBranch26;
+        case R_AARCH64_JUMP26:             return BinRelocBranch26;
+        case R_AARCH64_ADR_PREL_PG_HI21:   return BinRelocPagePCRelative;
+        case R_AARCH64_ADD_ABS_LO12_NC:    return BinRelocPageOffset12;
+        case R_AARCH64_GLOB_DAT:           return BinRelocGlobDat;
+        case R_AARCH64_JUMP_SLOT:          return BinRelocJumpSlot;
+        case R_AARCH64_RELATIVE:           return BinRelocRelative64;
+        case R_AARCH64_IRELATIVE:          return BinRelocIRelative;
+        default:                           return BinRelocFormatSpecific;
+      }
+
+    default:
+      return BinRelocFormatSpecific;
+  }
+}
+
+///
+/// ELF Relocation Iterator Structure
+///
+typedef struct {
+  ELF_CONTEXT  *ElfContext;
+  UINT16       Machine;
+  UINT32       CurrentIndex;
+  UINT32       TotalCount;
+  UINT64       SectionOffset;
+  UINT64       EntrySize;
+  BOOLEAN      IsRela;
+  BOOLEAN      Is64Bit;
+} ELF_RELOCATION_ITERATOR;
+
+/**
+  Create relocation iterator for a section.
 
   @param[in]   Context       ELF context.
   @param[in]   SectionIndex  Section index.
-  @param[out]  Relocations   Pointer to receive relocations array.
-  @param[out]  Count         Pointer to receive relocation count.
+  @param[out]  Iterator      Pointer to receive iterator.
 
-  @retval BINFORMAT_SUCCESS       Relocations retrieved.
+  @retval BINFORMAT_SUCCESS       Iterator created.
   @retval BINFORMAT_ERROR_*       Error occurred.
 
 **/
 STATIC
 BINFORMAT_STATUS
-ElfGetRelocations (
-  IN  BINFORMAT_CONTEXT     *Context,
-  IN  UINT32                SectionIndex,
-  OUT BINFORMAT_RELOCATION  **Relocations,
-  OUT UINT32                *Count
+ElfRelocationIterCreate (
+  IN  BINFORMAT_CONTEXT               *Context,
+  IN  UINT32                          SectionIndex,
+  OUT BINFORMAT_RELOCATION_ITERATOR   **Iterator
   )
 {
-  ELF_CONTEXT  *ElfCtx;
-  UINT32       SectionCount;
-  UINT32       i;
+  ELF_CONTEXT               *ElfCtx;
+  ELF_RELOCATION_ITERATOR   *Iter;
+  UINT32                    SectionCount;
+  UINT32                    i;
+  UINT16                    Machine;
 
-  if (Context == NULL || Relocations == NULL || Count == NULL) {
+  if (Context == NULL || Iterator == NULL) {
     return BINFORMAT_ERROR_INVALID_PARAMETER;
   }
 
@@ -2650,7 +2849,12 @@ ElfGetRelocations (
   SectionCount = ElfCtx->Is64Bit ? ElfCtx->Header.Elf64->e_shnum :
                                    ElfCtx->Header.Elf32->e_shnum;
 
+  Machine = ElfCtx->Is64Bit ? ElfCtx->Header.Elf64->e_machine :
+                              ElfCtx->Header.Elf32->e_machine;
+
+  //
   // Find relocation section for the given section
+  //
   for (i = 0; i < SectionCount; i++) {
     UINT32  sh_type;
     UINT32  sh_info;
@@ -2675,58 +2879,135 @@ ElfGetRelocations (
     }
 
     if ((sh_type == SHT_REL || sh_type == SHT_RELA) && sh_info == SectionIndex) {
-      UINT32 RelCount;
-      BINFORMAT_RELOCATION *Rels;
-      UINT8 *ElfData = ElfCtx->FileData + ElfCtx->CurrentOffset;
-      UINT32 j;
-
-      RelCount = (UINT32)(sh_size / sh_entsize);
-      Rels = (BINFORMAT_RELOCATION *)calloc(RelCount, sizeof(BINFORMAT_RELOCATION));
-      if (Rels == NULL) {
+      //
+      // Found relocation section - create iterator
+      //
+      Iter = (ELF_RELOCATION_ITERATOR *)calloc(1, sizeof(ELF_RELOCATION_ITERATOR));
+      if (Iter == NULL) {
         return BINFORMAT_ERROR_OUT_OF_MEMORY;
       }
 
-      for (j = 0; j < RelCount; j++) {
-        if (sh_type == SHT_RELA) {
-          if (ElfCtx->Is64Bit) {
-            Elf64_Rela *Rela = (Elf64_Rela *)(ElfData + sh_offset) + j;
-            Rels[j].Offset = Rela->r_offset;
-            Rels[j].SymbolIndex = ELF64_R_SYM(Rela->r_info);
-            Rels[j].Type = ELF64_R_TYPE(Rela->r_info);
-            Rels[j].Addend = Rela->r_addend;
-          } else {
-            Elf32_Rela *Rela = (Elf32_Rela *)(ElfData + sh_offset) + j;
-            Rels[j].Offset = Rela->r_offset;
-            Rels[j].SymbolIndex = ELF32_R_SYM(Rela->r_info);
-            Rels[j].Type = ELF32_R_TYPE(Rela->r_info);
-            Rels[j].Addend = Rela->r_addend;
-          }
-        } else {
-          if (ElfCtx->Is64Bit) {
-            Elf64_Rel *Rel = (Elf64_Rel *)(ElfData + sh_offset) + j;
-            Rels[j].Offset = Rel->r_offset;
-            Rels[j].SymbolIndex = ELF64_R_SYM(Rel->r_info);
-            Rels[j].Type = ELF64_R_TYPE(Rel->r_info);
-            Rels[j].Addend = 0;
-          } else {
-            Elf32_Rel *Rel = (Elf32_Rel *)(ElfData + sh_offset) + j;
-            Rels[j].Offset = Rel->r_offset;
-            Rels[j].SymbolIndex = ELF32_R_SYM(Rel->r_info);
-            Rels[j].Type = ELF32_R_TYPE(Rel->r_info);
-            Rels[j].Addend = 0;
-          }
-        }
-      }
+      Iter->ElfContext = ElfCtx;
+      Iter->Machine = Machine;
+      Iter->CurrentIndex = 0;
+      Iter->TotalCount = (UINT32)(sh_size / sh_entsize);
+      Iter->SectionOffset = sh_offset;
+      Iter->EntrySize = sh_entsize;
+      Iter->IsRela = (sh_type == SHT_RELA);
+      Iter->Is64Bit = ElfCtx->Is64Bit;
 
-      *Relocations = Rels;
-      *Count = RelCount;
+      *Iterator = (BINFORMAT_RELOCATION_ITERATOR *)Iter;
       return BINFORMAT_SUCCESS;
     }
   }
 
-  *Relocations = NULL;
-  *Count = 0;
   return BINFORMAT_ERROR_NOT_FOUND;
+}
+
+/**
+  Get next relocation from iterator.
+
+  @param[in]   Iterator      Relocation iterator.
+  @param[out]  Relocation    Pointer to receive relocation.
+
+  @retval BINFORMAT_SUCCESS      Relocation retrieved.
+  @retval BINFORMAT_ERROR_NOT_FOUND  No more relocations.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+
+**/
+STATIC
+BINFORMAT_STATUS
+ElfRelocationIterNext (
+  IN  BINFORMAT_RELOCATION_ITERATOR  *Iterator,
+  OUT BINFORMAT_RELOCATION           *Relocation
+  )
+{
+  ELF_RELOCATION_ITERATOR  *Iter;
+  UINT8                    *ElfData;
+  UINT32                   NativeType;
+
+  if (Iterator == NULL || Relocation == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  Iter = (ELF_RELOCATION_ITERATOR *)Iterator;
+
+  //
+  // Check if we've reached the end
+  //
+  if (Iter->CurrentIndex >= Iter->TotalCount) {
+    return BINFORMAT_ERROR_NOT_FOUND;
+  }
+
+  ElfData = Iter->ElfContext->FileData + Iter->ElfContext->CurrentOffset;
+
+  //
+  // Read relocation entry based on type (REL vs RELA) and class (32 vs 64)
+  //
+  if (Iter->IsRela) {
+    if (Iter->Is64Bit) {
+      Elf64_Rela *Rela = (Elf64_Rela *)(ElfData + Iter->SectionOffset) + Iter->CurrentIndex;
+      Relocation->Offset = Rela->r_offset;
+      Relocation->SymbolIndex = ELF64_R_SYM(Rela->r_info);
+      NativeType = ELF64_R_TYPE(Rela->r_info);
+      Relocation->Addend = Rela->r_addend;
+    } else {
+      Elf32_Rela *Rela = (Elf32_Rela *)(ElfData + Iter->SectionOffset) + Iter->CurrentIndex;
+      Relocation->Offset = Rela->r_offset;
+      Relocation->SymbolIndex = ELF32_R_SYM(Rela->r_info);
+      NativeType = ELF32_R_TYPE(Rela->r_info);
+      Relocation->Addend = Rela->r_addend;
+    }
+  } else {
+    if (Iter->Is64Bit) {
+      Elf64_Rel *Rel = (Elf64_Rel *)(ElfData + Iter->SectionOffset) + Iter->CurrentIndex;
+      Relocation->Offset = Rel->r_offset;
+      Relocation->SymbolIndex = ELF64_R_SYM(Rel->r_info);
+      NativeType = ELF64_R_TYPE(Rel->r_info);
+      Relocation->Addend = 0;
+    } else {
+      Elf32_Rel *Rel = (Elf32_Rel *)(ElfData + Iter->SectionOffset) + Iter->CurrentIndex;
+      Relocation->Offset = Rel->r_offset;
+      Relocation->SymbolIndex = ELF32_R_SYM(Rel->r_info);
+      NativeType = ELF32_R_TYPE(Rel->r_info);
+      Relocation->Addend = 0;
+    }
+  }
+
+  //
+  // Map native type to universal type
+  //
+  Relocation->NativeType = NativeType;
+  Relocation->Type = ElfMapRelocType(Iter->Machine, NativeType);
+
+  //
+  // Fill in additional fields
+  //
+  Relocation->SectionIndex = 0;
+  Relocation->IsScattered = FALSE;
+  Relocation->IsExtern = (Relocation->SymbolIndex != 0);
+  Relocation->IsPcRel = BinFormatIsRelocPCRelative(Relocation->Type);
+  Relocation->Length = BinFormatGetRelocSize(Relocation->Type);
+
+  Iter->CurrentIndex++;
+  return BINFORMAT_SUCCESS;
+}
+
+/**
+  Free relocation iterator.
+
+  @param[in]   Iterator      Relocation iterator to free.
+
+**/
+STATIC
+VOID
+ElfRelocationIterFree (
+  IN  BINFORMAT_RELOCATION_ITERATOR  *Iterator
+  )
+{
+  if (Iterator != NULL) {
+    free(Iterator);
+  }
 }
 
 /**
@@ -3539,9 +3820,9 @@ STATIC CONST BINFORMAT_API gElfApi = {
   .SegmentIterCreate = NULL,
   .SegmentIterNext = NULL,
   .SegmentIterFree = NULL,
-  .RelocationIterCreate = NULL,
-  .RelocationIterNext = NULL,
-  .RelocationIterFree = NULL,
+  .RelocationIterCreate = ElfRelocationIterCreate,
+  .RelocationIterNext = ElfRelocationIterNext,
+  .RelocationIterFree = ElfRelocationIterFree,
   .ArchIterCreate = NULL,
   .ArchIterNext = NULL,
   .ArchIterFree = NULL
