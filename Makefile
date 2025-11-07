@@ -63,7 +63,8 @@ BINFORMAT_LIB_OBJS = \
 	$(BUILD_DIR)/binformat/LibMacho.o \
 	$(BUILD_DIR)/binformat/LibOmf.o \
 	$(BUILD_DIR)/binformat/LibOrf.o \
-	$(BUILD_DIR)/binformat/LibMinidump.o
+	$(BUILD_DIR)/binformat/LibMinidump.o \
+	$(BUILD_DIR)/binformat/ElfCore.o
 
 # Switches library objects
 SWITCHES_LIB_OBJS = \

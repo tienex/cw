@@ -298,8 +298,7 @@ MachoMapRelocType (
           return BinRelocFormatSpecific;
       }
 
-    case MACHO_CPU_TYPE_I386:
-    case MACHO_CPU_TYPE_X86:
+    case MACHO_CPU_TYPE_I386:  // Same as MACHO_CPU_TYPE_X86
       switch (RelocType) {
         case I386_RELOC_VANILLA:
           return BinRelocAbsolute32;
@@ -1129,7 +1128,7 @@ MachoRelocationIterNext (
   Iter = (MACHO_RELOCATION_ITERATOR *)Iterator;
 
   if (Iter->CurrentIndex >= Iter->TotalCount) {
-    return BINFORMAT_ERROR_END_OF_DATA;
+    return BINFORMAT_ERROR_NOT_FOUND;
   }
 
   //

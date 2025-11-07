@@ -14,12 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../../include/binformat/BinFormat.h"
-#include "../../include/binformat/LibElf.h"
-#include "../../include/binformat/LibCoff.h"
-#include "../../include/binformat/LibAout.h"
-#include "../../include/binformat/LibMacho.h"
-#include "../../include/binformat/LibOmf.h"
-#include "../../include/binformat/LibOrf.h"
 
 /**
   Test a binary format library.
