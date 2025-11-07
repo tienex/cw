@@ -391,18 +391,24 @@ BinFormatNormalizeArchName(
   if (strcasecmp (ArchName, "x86_64") == 0 ||
       strcasecmp (ArchName, "x86-64") == 0 ||
       strcasecmp (ArchName, "amd64") == 0 ||
-      strcasecmp (ArchName, "x64") == 0) {
+      strcasecmp (ArchName, "x64") == 0 ||
+      strcasecmp (ArchName, "ia32e") == 0) {
     return "x86_64";
   }
 
   //
-  // i386 variants
+  // i386 variants (i?86 pattern, ix86, x86, ia32)
   //
   if (strcasecmp (ArchName, "i386") == 0 ||
       strcasecmp (ArchName, "i486") == 0 ||
       strcasecmp (ArchName, "i586") == 0 ||
       strcasecmp (ArchName, "i686") == 0 ||
-      strcasecmp (ArchName, "x86") == 0) {
+      strcasecmp (ArchName, "i786") == 0 ||
+      strcasecmp (ArchName, "i886") == 0 ||
+      strcasecmp (ArchName, "i986") == 0 ||
+      strcasecmp (ArchName, "ix86") == 0 ||
+      strcasecmp (ArchName, "x86") == 0 ||
+      strcasecmp (ArchName, "ia32") == 0) {
     return "i386";
   }
 
