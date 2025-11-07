@@ -10,9 +10,18 @@
 
 **/
 
+#ifdef __linux__
+  #define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <unistd.h>
+#ifdef __linux__
+  #include <fcntl.h>
+#endif
 #include "../../include/binformat/BinFormat.h"
 
 //
@@ -352,4 +361,323 @@ BinFormatGetSymbolTypeChar(
   }
 
   return TypeChar;
+}
+
+/**
+  Normalize architecture name to canonical form.
+
+  Handles various naming conventions:
+  - x86_64, x86-64, amd64, x64 -> x86_64
+  - i386, i486, i586, i686, x86 -> i386
+  - arm64, aarch64 -> arm64
+  - arm, armv7, armv7l -> arm
+
+  @param[in]   ArchName          Architecture name to normalize.
+
+  @return Canonical architecture name, or original if not recognized.
+**/
+CONST CHAR8 *
+BinFormatNormalizeArchName(
+  IN  CONST CHAR8  *ArchName
+  )
+{
+  if (ArchName == NULL) {
+    return NULL;
+  }
+
+  //
+  // x86-64 variants
+  //
+  if (strcasecmp (ArchName, "x86_64") == 0 ||
+      strcasecmp (ArchName, "x86-64") == 0 ||
+      strcasecmp (ArchName, "amd64") == 0 ||
+      strcasecmp (ArchName, "x64") == 0) {
+    return "x86_64";
+  }
+
+  //
+  // i386 variants
+  //
+  if (strcasecmp (ArchName, "i386") == 0 ||
+      strcasecmp (ArchName, "i486") == 0 ||
+      strcasecmp (ArchName, "i586") == 0 ||
+      strcasecmp (ArchName, "i686") == 0 ||
+      strcasecmp (ArchName, "x86") == 0) {
+    return "i386";
+  }
+
+  //
+  // ARM64 variants
+  //
+  if (strcasecmp (ArchName, "arm64") == 0 ||
+      strcasecmp (ArchName, "aarch64") == 0) {
+    return "arm64";
+  }
+
+  //
+  // ARM variants
+  //
+  if (strcasecmp (ArchName, "arm") == 0 ||
+      strcasecmp (ArchName, "armv7") == 0 ||
+      strcasecmp (ArchName, "armv7l") == 0 ||
+      strcasecmp (ArchName, "armv6") == 0) {
+    return "arm";
+  }
+
+  //
+  // PowerPC variants
+  //
+  if (strcasecmp (ArchName, "ppc") == 0 ||
+      strcasecmp (ArchName, "powerpc") == 0) {
+    return "ppc";
+  }
+
+  if (strcasecmp (ArchName, "ppc64") == 0 ||
+      strcasecmp (ArchName, "powerpc64") == 0) {
+    return "ppc64";
+  }
+
+  //
+  // MIPS variants
+  //
+  if (strcasecmp (ArchName, "mips") == 0 ||
+      strcasecmp (ArchName, "mipsel") == 0) {
+    return "mips";
+  }
+
+  if (strcasecmp (ArchName, "mips64") == 0 ||
+      strcasecmp (ArchName, "mips64el") == 0) {
+    return "mips64";
+  }
+
+  //
+  // RISC-V variants
+  //
+  if (strcasecmp (ArchName, "riscv64") == 0 ||
+      strcasecmp (ArchName, "riscv") == 0) {
+    return "riscv64";
+  }
+
+  if (strcasecmp (ArchName, "riscv32") == 0) {
+    return "riscv32";
+  }
+
+  //
+  // SPARC variants
+  //
+  if (strcasecmp (ArchName, "sparc") == 0) {
+    return "sparc";
+  }
+
+  if (strcasecmp (ArchName, "sparc64") == 0) {
+    return "sparc64";
+  }
+
+  //
+  // Return original if not recognized
+  //
+  return ArchName;
+}
+
+/**
+  Compare two architecture names for equivalence.
+
+  Handles naming variations (e.g., x86_64 == x86-64 == amd64).
+
+  @param[in]   Arch1             First architecture name.
+  @param[in]   Arch2             Second architecture name.
+
+  @retval TRUE   Architecture names are equivalent.
+  @retval FALSE  Architecture names are different.
+**/
+BOOLEAN
+BinFormatArchNamesMatch(
+  IN  CONST CHAR8  *Arch1,
+  IN  CONST CHAR8  *Arch2
+  )
+{
+  CONST CHAR8  *Normalized1;
+  CONST CHAR8  *Normalized2;
+
+  if (Arch1 == NULL || Arch2 == NULL) {
+    return FALSE;
+  }
+
+  //
+  // Normalize both names and compare
+  //
+  Normalized1 = BinFormatNormalizeArchName (Arch1);
+  Normalized2 = BinFormatNormalizeArchName (Arch2);
+
+  return (strcmp (Normalized1, Normalized2) == 0);
+}
+
+/**
+  Extract thin slice from fat binary directly to file descriptor using splice.
+
+  This provides zero-copy extraction on Linux using the splice() system call.
+  On other platforms, falls back to read+write.
+
+  This is backend-agnostic - it works with any format that supports fat binaries
+  by using the BINFORMAT_ARCHITECTURE offset/size information.
+
+  @param[in]   Api               Binary format API.
+  @param[in]   Context           Fat binary context.
+  @param[in]   ArchIndex         Index of architecture to extract.
+  @param[in]   SourceFd          Source file descriptor (original fat binary).
+  @param[in]   DestFd            Destination file descriptor (must be writable).
+
+  @retval BINFORMAT_SUCCESS      Thin slice extracted successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatExtractThinToFd(
+  IN  CONST BINFORMAT_API  *Api,
+  IN  BINFORMAT_CONTEXT    *Context,
+  IN  UINT32               ArchIndex,
+  IN  INT32                SourceFd,
+  IN  INT32                DestFd
+  )
+{
+  BINFORMAT_STATUS       Status;
+  BINFORMAT_HEADER_INFO  HeaderInfo;
+  UINT64                 Offset;
+  UINT64                 Size;
+  UINT64                 Remaining;
+
+  if (Api == NULL || Context == NULL || SourceFd < 0 || DestFd < 0) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  //
+  // Get header info to access architecture list
+  //
+  Status = Api->GetHeader (Context, &HeaderInfo);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    return Status;
+  }
+
+  //
+  // Validate architecture index
+  //
+  if (ArchIndex >= HeaderInfo.ArchitectureCount) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  //
+  // Get offset and size for the requested architecture
+  //
+  Offset = HeaderInfo.Architectures[ArchIndex].Offset;
+  Size = HeaderInfo.Architectures[ArchIndex].Size;
+
+#ifdef __linux__
+  //
+  // Linux: use splice() for zero-copy extraction
+  //
+  {
+    off64_t  SpliceOffset;
+    ssize_t  BytesSpliced;
+
+    SpliceOffset = (off64_t)Offset;
+    Remaining = Size;
+
+    while (Remaining > 0) {
+      //
+      // splice() can transfer up to 2GB at a time on most systems
+      //
+      size_t ChunkSize = (Remaining > 0x7FFFF000) ? 0x7FFFF000 : (size_t)Remaining;
+
+      BytesSpliced = splice (
+                       SourceFd,
+                       &SpliceOffset,
+                       DestFd,
+                       NULL,
+                       ChunkSize,
+                       0
+                       );
+
+      if (BytesSpliced < 0) {
+        return BINFORMAT_ERROR_IO;
+      }
+
+      if (BytesSpliced == 0) {
+        //
+        // Unexpected EOF
+        //
+        return BINFORMAT_ERROR_INVALID_FORMAT;
+      }
+
+      Remaining -= (UINT64)BytesSpliced;
+    }
+  }
+#else
+  //
+  // Other platforms: use lseek + read + write
+  //
+  {
+    UINT8    *Buffer;
+    size_t   ChunkSize;
+    ssize_t  BytesRead;
+    ssize_t  BytesWritten;
+
+    //
+    // Seek to the slice offset in the source file
+    //
+    if (lseek (SourceFd, (off_t)Offset, SEEK_SET) < 0) {
+      return BINFORMAT_ERROR_IO;
+    }
+
+    //
+    // Allocate buffer for copying (use 1MB chunks)
+    //
+    ChunkSize = 1024 * 1024;
+    if ((UINT64)ChunkSize > Size) {
+      ChunkSize = (size_t)Size;
+    }
+
+    Buffer = (UINT8 *)malloc (ChunkSize);
+    if (Buffer == NULL) {
+      return BINFORMAT_ERROR_OUT_OF_MEMORY;
+    }
+
+    //
+    // Copy in chunks
+    //
+    Remaining = Size;
+    while (Remaining > 0) {
+      size_t ToRead = (Remaining > ChunkSize) ? ChunkSize : (size_t)Remaining;
+
+      BytesRead = read (SourceFd, Buffer, ToRead);
+      if (BytesRead < 0) {
+        free (Buffer);
+        return BINFORMAT_ERROR_IO;
+      }
+
+      if (BytesRead == 0) {
+        //
+        // Unexpected EOF
+        //
+        free (Buffer);
+        return BINFORMAT_ERROR_INVALID_FORMAT;
+      }
+
+      BytesWritten = write (DestFd, Buffer, (size_t)BytesRead);
+      if (BytesWritten != BytesRead) {
+        free (Buffer);
+        return BINFORMAT_ERROR_IO;
+      }
+
+      Remaining -= (UINT64)BytesRead;
+    }
+
+    free (Buffer);
+  }
+#endif
+
+  //
+  // Reset destination fd to beginning
+  //
+  lseek (DestFd, 0, SEEK_SET);
+
+  return BINFORMAT_SUCCESS;
 }

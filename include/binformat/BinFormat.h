@@ -1648,4 +1648,66 @@ BinFormatGetSymbolTypeChar(
   IN  CONST BINFORMAT_SYMBOL  *Symbol
   );
 
+/**
+  Normalize architecture name to canonical form.
+
+  Handles various naming conventions:
+  - x86_64, x86-64, amd64, x64 -> x86_64
+  - i386, i486, i586, i686, x86 -> i386
+  - arm64, aarch64 -> arm64
+  - arm, armv7, armv7l -> arm
+
+  @param[in]   ArchName          Architecture name to normalize.
+
+  @return Canonical architecture name, or original if not recognized.
+**/
+CONST CHAR8 *
+BinFormatNormalizeArchName(
+  IN  CONST CHAR8  *ArchName
+  );
+
+/**
+  Compare two architecture names for equivalence.
+
+  Handles naming variations (e.g., x86_64 == x86-64 == amd64).
+
+  @param[in]   Arch1             First architecture name.
+  @param[in]   Arch2             Second architecture name.
+
+  @retval TRUE   Architecture names are equivalent.
+  @retval FALSE  Architecture names are different.
+**/
+BOOLEAN
+BinFormatArchNamesMatch(
+  IN  CONST CHAR8  *Arch1,
+  IN  CONST CHAR8  *Arch2
+  );
+
+/**
+  Extract thin slice from fat binary directly to file descriptor using splice.
+
+  This provides zero-copy extraction on Linux using the splice() system call.
+  On other platforms, falls back to read+write.
+
+  This is backend-agnostic - it works with any format that supports fat binaries
+  by using the BINFORMAT_ARCHITECTURE offset/size information.
+
+  @param[in]   Api               Binary format API.
+  @param[in]   Context           Fat binary context.
+  @param[in]   ArchIndex         Index of architecture to extract.
+  @param[in]   SourceFd          Source file descriptor (original fat binary).
+  @param[in]   DestFd            Destination file descriptor (must be writable).
+
+  @retval BINFORMAT_SUCCESS      Thin slice extracted successfully.
+  @retval BINFORMAT_ERROR_*      Error occurred.
+**/
+BINFORMAT_STATUS
+BinFormatExtractThinToFd(
+  IN  CONST BINFORMAT_API  *Api,
+  IN  BINFORMAT_CONTEXT    *Context,
+  IN  UINT32               ArchIndex,
+  IN  INT32                SourceFd,
+  IN  INT32                DestFd
+  );
+
 #endif // __BINFORMAT_H__

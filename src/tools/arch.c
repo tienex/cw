@@ -65,139 +65,6 @@ GetCurrentArch (
 #endif
 }
 
-/**
-  Check if two architecture names match (handling variations).
-
-  @param[in]  Arch1  First architecture name.
-  @param[in]  Arch2  Second architecture name.
-
-  @retval TRUE   Architectures match.
-  @retval FALSE  Architectures differ.
-**/
-STATIC
-BOOLEAN
-ArchNamesMatch (
-  IN  CONST CHAR8  *Arch1,
-  IN  CONST CHAR8  *Arch2
-  )
-{
-  if (strcmp (Arch1, Arch2) == 0) {
-    return TRUE;
-  }
-
-  //
-  // Handle common variations
-  //
-  if ((strcmp (Arch1, "x86_64") == 0 && strcmp (Arch2, "x86-64") == 0) ||
-      (strcmp (Arch1, "x86-64") == 0 && strcmp (Arch2, "x86_64") == 0)) {
-    return TRUE;
-  }
-
-  if ((strcmp (Arch1, "arm64") == 0 && strcmp (Arch2, "aarch64") == 0) ||
-      (strcmp (Arch1, "aarch64") == 0 && strcmp (Arch2, "arm64") == 0)) {
-    return TRUE;
-  }
-
-  if ((strcmp (Arch1, "i386") == 0 && strcmp (Arch2, "x86") == 0) ||
-      (strcmp (Arch1, "x86") == 0 && strcmp (Arch1, "i386") == 0)) {
-    return TRUE;
-  }
-
-  return FALSE;
-}
-
-/**
-  Write thin slice to file descriptor efficiently.
-
-  Uses platform-specific methods to avoid intermediate buffers:
-  - Linux: mmap to memfd
-  - Other systems: write() with temporary buffer
-
-  @param[in]  Api          Binary format API.
-  @param[in]  Context      Thin binary context.
-  @param[in]  fd           File descriptor to write to.
-
-  @retval 0  Success.
-  @retval 1  Error.
-**/
-STATIC
-INT32
-WriteThinToFd (
-  IN  CONST BINFORMAT_API  *Api,
-  IN  BINFORMAT_CONTEXT    *Context,
-  IN  INT32                fd
-  )
-{
-  BINFORMAT_STATUS  Status;
-  UINT64            ThinSize;
-  UINT64            Written;
-
-  //
-  // Query size
-  //
-  Status = Api->WriteMemory (Context, NULL, 0, &ThinSize);
-  if (BINFORMAT_IS_ERROR (Status)) {
-    fprintf (stderr, "arch: failed to query thin slice size\n");
-    return 1;
-  }
-
-#if defined(__linux__) || defined(__FreeBSD__)
-  //
-  // Use mmap for zero-copy on Linux/FreeBSD
-  //
-  VOID  *MappedMem;
-
-  if (ftruncate (fd, ThinSize) < 0) {
-    perror ("arch: ftruncate failed");
-    return 1;
-  }
-
-  MappedMem = mmap (NULL, ThinSize, PROT_WRITE, MAP_SHARED, fd, 0);
-  if (MappedMem == MAP_FAILED) {
-    perror ("arch: mmap failed");
-    return 1;
-  }
-
-  Status = Api->WriteMemory (Context, MappedMem, ThinSize, &Written);
-  munmap (MappedMem, ThinSize);
-
-  if (BINFORMAT_IS_ERROR (Status)) {
-    fprintf (stderr, "arch: failed to write thin slice\n");
-    return 1;
-  }
-
-  lseek (fd, 0, SEEK_SET);
-#else
-  //
-  // Fallback: use malloc + write for other systems
-  //
-  UINT8  *Buffer;
-
-  Buffer = malloc (ThinSize);
-  if (Buffer == NULL) {
-    fprintf (stderr, "arch: out of memory\n");
-    return 1;
-  }
-
-  Status = Api->WriteMemory (Context, Buffer, ThinSize, &Written);
-  if (BINFORMAT_IS_ERROR (Status)) {
-    fprintf (stderr, "arch: failed to write thin slice to memory\n");
-    free (Buffer);
-    return 1;
-  }
-
-  if (write (fd, Buffer, Written) != (ssize_t)Written) {
-    perror ("arch: write failed");
-    free (Buffer);
-    return 1;
-  }
-
-  free (Buffer);
-  lseek (fd, 0, SEEK_SET);
-#endif
-
-  return 0;
-}
 
 /**
   Get QEMU emulator for architecture.
@@ -212,13 +79,13 @@ GetQemuEmulator (
   IN  CONST CHAR8  *Arch
   )
 {
-  if (ArchNamesMatch (Arch, "x86_64")) {
+  if (BinFormatArchNamesMatch (Arch, "x86_64")) {
     return "qemu-x86_64";
-  } else if (ArchNamesMatch (Arch, "i386")) {
+  } else if (BinFormatArchNamesMatch (Arch, "i386")) {
     return "qemu-i386";
-  } else if (ArchNamesMatch (Arch, "arm64")) {
+  } else if (BinFormatArchNamesMatch (Arch, "arm64")) {
     return "qemu-aarch64";
-  } else if (ArchNamesMatch (Arch, "arm")) {
+  } else if (BinFormatArchNamesMatch (Arch, "arm")) {
     return "qemu-arm";
   } else if (strcmp (Arch, "ppc64") == 0) {
     return "qemu-ppc64";
@@ -256,7 +123,6 @@ ExecuteWithArch (
 {
   CONST BINFORMAT_API       *Api;
   BINFORMAT_CONTEXT         *FatContext;
-  BINFORMAT_CONTEXT         *ThinContext;
   BINFORMAT_STATUS          Status;
   BINFORMAT_HEADER_INFO     HeaderInfo;
   CONST CHAR8               *CurrentArch;
@@ -303,7 +169,7 @@ ExecuteWithArch (
   if (IsFat) {
     BOOLEAN ArchFound = FALSE;
     for (i = 0; i < HeaderInfo.ArchitectureCount; i++) {
-      if (ArchNamesMatch (Arch, BinFormatGetMachineName (HeaderInfo.Architectures[i].Machine))) {
+      if (BinFormatArchNamesMatch (Arch, BinFormatGetMachineName (HeaderInfo.Architectures[i].Machine))) {
         ArchFound = TRUE;
         ArchIndex = i;
         break;
@@ -321,9 +187,9 @@ ExecuteWithArch (
   // Determine if emulation is needed (only on Linux via QEMU)
   //
 #ifdef __linux__
-  BOOLEAN NeedEmulation = !ArchNamesMatch (Arch, CurrentArch) || gOptions.Emulated;
+  BOOLEAN NeedEmulation = !BinFormatArchNamesMatch (Arch, CurrentArch) || gOptions.Emulated;
 #else
-  BOOLEAN NeedEmulation = !ArchNamesMatch (Arch, CurrentArch);
+  BOOLEAN NeedEmulation = !BinFormatArchNamesMatch (Arch, CurrentArch);
   // gOptions.Emulated is a no-op on non-Linux systems
 #endif
 
@@ -344,18 +210,17 @@ ExecuteWithArch (
     }
 
     //
-    // For fat binaries, extract thin slice to memfd
+    // For fat binaries, extract thin slice to memfd using splice
     //
     if (IsFat) {
-      if (Api->ExtractThin == NULL) {
-        fprintf (stderr, "arch: ExtractThin not supported\n");
-        Api->Close (FatContext);
-        return 1;
-      }
+      INT32  SourceFd;
 
-      Status = Api->ExtractThin (FatContext, ArchIndex, &ThinContext);
-      if (BINFORMAT_IS_ERROR (Status)) {
-        fprintf (stderr, "arch: failed to extract thin slice\n");
+      //
+      // Open source file for splice
+      //
+      SourceFd = open (Command[0], O_RDONLY);
+      if (SourceFd < 0) {
+        perror ("arch: failed to open source file");
         Api->Close (FatContext);
         return 1;
       }
@@ -366,22 +231,23 @@ ExecuteWithArch (
       fd = memfd_create ("arch_qemu", MFD_CLOEXEC);
       if (fd < 0) {
         perror ("arch: memfd_create failed");
-        Api->Close (ThinContext);
+        close (SourceFd);
         Api->Close (FatContext);
         return 1;
       }
 
       //
-      // Write thin slice to memfd using efficient method
+      // Extract thin slice directly using splice (zero-copy on Linux)
       //
-      if (WriteThinToFd (Api, ThinContext, fd) != 0) {
+      Status = BinFormatExtractThinToFd (Api, FatContext, ArchIndex, SourceFd, fd);
+      close (SourceFd);
+
+      if (BINFORMAT_IS_ERROR (Status)) {
+        fprintf (stderr, "arch: failed to extract thin slice\n");
         close (fd);
-        Api->Close (ThinContext);
         Api->Close (FatContext);
         return 1;
       }
-
-      Api->Close (ThinContext);
 
       //
       // Build /proc/self/fd/N path
@@ -422,18 +288,14 @@ ExecuteWithArch (
   // Native execution using fexecve
   //
   if (IsFat) {
-    //
-    // For fat binaries, extract thin slice to memfd
-    //
-    if (Api->ExtractThin == NULL) {
-      fprintf (stderr, "arch: ExtractThin not supported\n");
-      Api->Close (FatContext);
-      return 1;
-    }
+    INT32  SourceFd;
 
-    Status = Api->ExtractThin (FatContext, ArchIndex, &ThinContext);
-    if (BINFORMAT_IS_ERROR (Status)) {
-      fprintf (stderr, "arch: failed to extract thin slice\n");
+    //
+    // Open source file for extraction
+    //
+    SourceFd = open (Command[0], O_RDONLY);
+    if (SourceFd < 0) {
+      perror ("arch: failed to open source file");
       Api->Close (FatContext);
       return 1;
     }
@@ -445,7 +307,7 @@ ExecuteWithArch (
     fd = memfd_create ("arch_exec", MFD_CLOEXEC);
     if (fd < 0) {
       perror ("arch: memfd_create failed");
-      Api->Close (ThinContext);
+      close (SourceFd);
       Api->Close (FatContext);
       return 1;
     }
@@ -456,7 +318,7 @@ ExecuteWithArch (
     fd = shm_open (SHM_ANON, O_RDWR | O_CLOEXEC, 0600);
     if (fd < 0) {
       perror ("arch: shm_open failed");
-      Api->Close (ThinContext);
+      close (SourceFd);
       Api->Close (FatContext);
       return 1;
     }
@@ -467,7 +329,7 @@ ExecuteWithArch (
     FILE *tmpf = tmpfile ();
     if (tmpf == NULL) {
       perror ("arch: tmpfile failed");
-      Api->Close (ThinContext);
+      close (SourceFd);
       Api->Close (FatContext);
       return 1;
     }
@@ -475,16 +337,18 @@ ExecuteWithArch (
 #endif
 
     //
-    // Write thin slice efficiently
+    // Extract thin slice directly (uses splice on Linux, read/write elsewhere)
     //
-    if (WriteThinToFd (Api, ThinContext, fd) != 0) {
+    Status = BinFormatExtractThinToFd (Api, FatContext, ArchIndex, SourceFd, fd);
+    close (SourceFd);
+
+    if (BINFORMAT_IS_ERROR (Status)) {
+      fprintf (stderr, "arch: failed to extract thin slice\n");
       close (fd);
-      Api->Close (ThinContext);
       Api->Close (FatContext);
       return 1;
     }
 
-    Api->Close (ThinContext);
     Api->Close (FatContext);
   } else {
     //
