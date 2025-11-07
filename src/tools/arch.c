@@ -1,110 +1,34 @@
 /** @file
-  arch - Architecture selection and universal binary executor.
+  arch - Architecture selector for universal binaries.
 
-  This tool displays architecture information and executes binaries
-  with specific architecture selection, optionally using emulation.
-  Similar to macOS arch command.
+  Execute binaries with a specific architecture, using QEMU for emulation
+  when necessary. Uses fexecve(2) for execution.
 
   Copyright (c) 2025. All rights reserved.
-
   SPDX-License-Identifier: MIT
-
 **/
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/wait.h>
-#include <getopt.h>
+#include <sys/stat.h>
 #include "binformat/BinFormat.h"
 
 typedef struct {
-  CHAR8     *TargetArch;
-  CHAR8     **Command;
-  INT32     CommandArgc;
-  BOOLEAN   Emulated;
-  BOOLEAN   List32bit;
-  BOOLEAN   List64bit;
-  BOOLEAN   ListAll;
+  CONST CHAR8  *Arch;
+  BOOLEAN      Emulated;
 } ARCH_OPTIONS;
 
 STATIC ARCH_OPTIONS gOptions = {0};
 
 /**
-  Print usage information.
-**/
-STATIC
-VOID
-PrintUsage (
-  IN  CONST CHAR8  *ProgramName
-  )
-{
-  printf ("Usage: %s [options] [command [args...]]\n", ProgramName);
-  printf ("\n");
-  printf ("Options:\n");
-  printf ("  -arch <arch>      Execute command with specific architecture\n");
-  printf ("  -emulated         Use emulation (QEMU) if architecture not native\n");
-  printf ("  -32               List 32-bit architectures\n");
-  printf ("  -64               List 64-bit architectures\n");
-  printf ("  -h, --help        Show this help message\n");
-  printf ("\n");
-  printf ("Architectures:\n");
-  printf ("  i386, x86_64, arm, arm64, ppc, ppc64, mips, mips64, riscv32, riscv64\n");
-  printf ("\n");
-  printf ("Examples:\n");
-  printf ("  %s                        # Show current architecture\n", ProgramName);
-  printf ("  %s -32                    # List 32-bit architectures\n", ProgramName);
-  printf ("  %s -arch x86_64 ./app     # Run app as x86_64\n", ProgramName);
-  printf ("  %s -arch arm64 -emulated ./app  # Run app as ARM64 via QEMU\n", ProgramName);
-}
+  Get current architecture.
 
-/**
-  Normalize architecture name for comparison.
-
-  @param[in]  Arch  Architecture name.
-
-  @return Normalized name.
-**/
-STATIC
-BOOLEAN
-ArchNamesMatch (
-  IN  CONST CHAR8  *Arch1,
-  IN  CONST CHAR8  *Arch2
-  )
-{
-  //
-  // Direct match
-  //
-  if (strcmp (Arch1, Arch2) == 0) {
-    return TRUE;
-  }
-
-  //
-  // Handle variations: x86_64 vs x86-64, aarch64 vs arm64, etc.
-  //
-  if ((strcmp (Arch1, "x86_64") == 0 && strcmp (Arch2, "x86-64") == 0) ||
-      (strcmp (Arch1, "x86-64") == 0 && strcmp (Arch2, "x86_64") == 0)) {
-    return TRUE;
-  }
-
-  if ((strcmp (Arch1, "arm64") == 0 && strcmp (Arch2, "aarch64") == 0) ||
-      (strcmp (Arch1, "aarch64") == 0 && strcmp (Arch2, "arm64") == 0)) {
-    return TRUE;
-  }
-
-  if ((strcmp (Arch1, "i386") == 0 && strcmp (Arch2, "x86") == 0) ||
-      (strcmp (Arch1, "x86") == 0 && strcmp (Arch2, "i386") == 0)) {
-    return TRUE;
-  }
-
-  return FALSE;
-}
-
-/**
-  Get current system architecture.
-
-  @return String name of current architecture.
+  @return Architecture string.
 **/
 STATIC
 CONST CHAR8 *
@@ -138,67 +62,52 @@ GetCurrentArch (
 }
 
 /**
-  Check if architecture is 64-bit.
+  Check if two architecture names match (handling variations).
 
-  @param[in]  Arch  Architecture name.
+  @param[in]  Arch1  First architecture name.
+  @param[in]  Arch2  Second architecture name.
 
-  @return TRUE if 64-bit, FALSE otherwise.
+  @retval TRUE   Architectures match.
+  @retval FALSE  Architectures differ.
 **/
 STATIC
 BOOLEAN
-Is64BitArch (
-  IN  CONST CHAR8  *Arch
+ArchNamesMatch (
+  IN  CONST CHAR8  *Arch1,
+  IN  CONST CHAR8  *Arch2
   )
 {
-  if (strcmp (Arch, "x86_64") == 0 ||
-      strcmp (Arch, "arm64") == 0 ||
-      strcmp (Arch, "ppc64") == 0 ||
-      strcmp (Arch, "mips64") == 0 ||
-      strcmp (Arch, "riscv64") == 0) {
+  if (strcmp (Arch1, Arch2) == 0) {
     return TRUE;
   }
+
+  //
+  // Handle common variations
+  //
+  if ((strcmp (Arch1, "x86_64") == 0 && strcmp (Arch2, "x86-64") == 0) ||
+      (strcmp (Arch1, "x86-64") == 0 && strcmp (Arch2, "x86_64") == 0)) {
+    return TRUE;
+  }
+
+  if ((strcmp (Arch1, "arm64") == 0 && strcmp (Arch2, "aarch64") == 0) ||
+      (strcmp (Arch1, "aarch64") == 0 && strcmp (Arch2, "arm64") == 0)) {
+    return TRUE;
+  }
+
+  if ((strcmp (Arch1, "i386") == 0 && strcmp (Arch2, "x86") == 0) ||
+      (strcmp (Arch1, "x86") == 0 && strcmp (Arch1, "i386") == 0)) {
+    return TRUE;
+  }
+
   return FALSE;
 }
 
 /**
-  List supported architectures.
-
-  @param[in]  Only32bit  List only 32-bit architectures.
-  @param[in]  Only64bit  List only 64-bit architectures.
-**/
-STATIC
-VOID
-ListArchitectures (
-  IN  BOOLEAN  Only32bit,
-  IN  BOOLEAN  Only64bit
-  )
-{
-  CONST CHAR8  *Archs[] = {
-    "i386", "x86_64", "arm", "arm64", "ppc", "ppc64",
-    "mips", "mips64", "riscv32", "riscv64", NULL
-  };
-  INT32  i;
-
-  for (i = 0; Archs[i] != NULL; i++) {
-    BOOLEAN Is64 = Is64BitArch (Archs[i]);
-
-    if (Only32bit && Is64) {
-      continue;
-    }
-    if (Only64bit && !Is64) {
-      continue;
-    }
-
-    printf ("%s\n", Archs[i]);
-  }
-}
-
-/**
-  Get QEMU emulator name for architecture.
+  Get QEMU emulator for architecture.
 
   @param[in]  Arch  Architecture name.
 
-  @return QEMU binary name.
+  @return QEMU binary name or NULL.
 **/
 STATIC
 CONST CHAR8 *
@@ -206,13 +115,13 @@ GetQemuEmulator (
   IN  CONST CHAR8  *Arch
   )
 {
-  if (strcmp (Arch, "x86_64") == 0) {
+  if (ArchNamesMatch (Arch, "x86_64")) {
     return "qemu-x86_64";
-  } else if (strcmp (Arch, "i386") == 0) {
+  } else if (ArchNamesMatch (Arch, "i386")) {
     return "qemu-i386";
-  } else if (strcmp (Arch, "arm64") == 0 || strcmp (Arch, "aarch64") == 0) {
+  } else if (ArchNamesMatch (Arch, "arm64")) {
     return "qemu-aarch64";
-  } else if (strcmp (Arch, "arm") == 0) {
+  } else if (ArchNamesMatch (Arch, "arm")) {
     return "qemu-arm";
   } else if (strcmp (Arch, "ppc64") == 0) {
     return "qemu-ppc64";
@@ -232,36 +141,149 @@ GetQemuEmulator (
 }
 
 /**
-  Execute command with specified architecture.
+  Extract thin slice from fat binary to temporary file.
 
-  @param[in]  Arch      Target architecture.
-  @param[in]  Command   Command to execute.
-  @param[in]  Argc      Argument count.
-  @param[in]  Emulated  Use emulation if TRUE.
+  @param[in]  BinaryPath  Path to fat binary.
+  @param[in]  Arch        Architecture to extract.
+  @param[out] ThinPath    Path to extracted thin binary.
 
-  @return Exit code from executed command.
+  @retval 0  Success.
+  @retval 1  Error.
+**/
+STATIC
+INT32
+ExtractThinSlice (
+  IN  CONST CHAR8  *BinaryPath,
+  IN  CONST CHAR8  *Arch,
+  OUT CHAR8        *ThinPath,
+  IN  size_t       ThinPathSize
+  )
+{
+  CONST BINFORMAT_API    *Api;
+  BINFORMAT_CONTEXT      *FatContext;
+  BINFORMAT_CONTEXT      *ThinContext;
+  BINFORMAT_STATUS       Status;
+  BINFORMAT_HEADER_INFO  HeaderInfo;
+  UINT32                 ArchIndex;
+  UINT32                 i;
+  BOOLEAN                Found = FALSE;
+
+  //
+  // Detect file format
+  //
+  Api = BinFormatDetectFile (BinaryPath, &FatContext, TRUE);
+  if (Api == NULL) {
+    fprintf (stderr, "arch: %s: cannot detect file format\n", BinaryPath);
+    return 1;
+  }
+
+  //
+  // Get header to find architecture index
+  //
+  Status = Api->GetHeader (FatContext, &HeaderInfo);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "arch: %s: cannot get header\n", BinaryPath);
+    Api->Close (FatContext);
+    return 1;
+  }
+
+  //
+  // Find architecture index
+  //
+  for (i = 0; i < HeaderInfo.ArchitectureCount; i++) {
+    if (ArchNamesMatch (Arch, BinFormatGetMachineName (HeaderInfo.Architectures[i].Machine))) {
+      ArchIndex = i;
+      Found = TRUE;
+      break;
+    }
+  }
+
+  if (!Found) {
+    fprintf (stderr, "arch: %s: architecture %s not found\n", BinaryPath, Arch);
+    Api->Close (FatContext);
+    return 1;
+  }
+
+  //
+  // Check if ExtractThin is supported
+  //
+  if (Api->ExtractThin == NULL) {
+    fprintf (stderr, "arch: %s: thin extraction not supported\n", BinaryPath);
+    Api->Close (FatContext);
+    return 1;
+  }
+
+  //
+  // Extract thin slice
+  //
+  Status = Api->ExtractThin (FatContext, ArchIndex, &ThinContext);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "arch: failed to extract %s slice from %s\n", Arch, BinaryPath);
+    Api->Close (FatContext);
+    return 1;
+  }
+
+  //
+  // Create temporary file path
+  //
+  snprintf (ThinPath, ThinPathSize, "/tmp/arch_thin_%d", getpid ());
+
+  //
+  // Write thin slice to file
+  //
+  if (Api->WriteFile == NULL) {
+    fprintf (stderr, "arch: WriteFile not supported\n");
+    Api->Close (ThinContext);
+    Api->Close (FatContext);
+    return 1;
+  }
+
+  Status = Api->WriteFile (ThinContext, ThinPath);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "arch: failed to write thin slice to %s\n", ThinPath);
+    Api->Close (ThinContext);
+    Api->Close (FatContext);
+    return 1;
+  }
+
+  Api->Close (ThinContext);
+  Api->Close (FatContext);
+  return 0;
+}
+
+/**
+  Execute with specified architecture using fexecve.
+
+  @param[in]  Arch     Target architecture.
+  @param[in]  Command  Command and arguments.
+  @param[in]  Argc     Number of arguments.
+
+  @return Exit code.
 **/
 STATIC
 INT32
 ExecuteWithArch (
   IN  CONST CHAR8  *Arch,
   IN  CHAR8        **Command,
-  IN  INT32        Argc,
-  IN  BOOLEAN      Emulated
+  IN  INT32        Argc
   )
 {
-  CONST CHAR8           *CurrentArch;
-  CONST BINFORMAT_API   *Api;
-  BINFORMAT_CONTEXT     *Context;
-  BINFORMAT_STATUS      Status;
-  BINFORMAT_HEADER_INFO HeaderInfo;
-  pid_t                 pid;
-  INT32                 ExitStatus;
-  CONST CHAR8           *QemuBin;
-  CHAR8                 **ExecArgs;
-  INT32                 i;
+  CONST BINFORMAT_API       *Api;
+  BINFORMAT_CONTEXT         *Context;
+  BINFORMAT_STATUS          Status;
+  BINFORMAT_HEADER_INFO     HeaderInfo;
+  CONST CHAR8               *CurrentArch;
+  CONST CHAR8               *QemuBin;
+  CHAR8                     *ExecArgs[256];
+  INT32                     fd;
+  pid_t                     pid;
+  INT32                     ExitStatus;
+  BOOLEAN                   IsFat = FALSE;
+  UINT32                    i;
+  CHAR8                     ThinPath[256];
+  BOOLEAN                   ExtractedThin = FALSE;
 
-  if (Argc == 0 || Command == NULL || Command[0] == NULL) {
+  if (Argc < 1) {
     fprintf (stderr, "arch: no command specified\n");
     return 1;
   }
@@ -269,55 +291,40 @@ ExecuteWithArch (
   CurrentArch = GetCurrentArch ();
 
   //
-  // Check if binary exists and detect its format
+  // Detect binary format
   //
   Api = BinFormatDetectFile (Command[0], &Context, TRUE);
   if (Api == NULL) {
-    fprintf (stderr, "arch: %s: cannot execute: file format not recognized\n", Command[0]);
-    return 127;
+    fprintf (stderr, "arch: %s: cannot detect file format\n", Command[0]);
+    return 1;
   }
 
-  //
-  // Get binary architecture
-  //
   Status = Api->GetHeader (Context, &HeaderInfo);
   if (BINFORMAT_IS_ERROR (Status)) {
-    fprintf (stderr, "arch: %s: cannot get binary architecture\n", Command[0]);
+    fprintf (stderr, "arch: %s: cannot get header info\n", Command[0]);
     Api->Close (Context);
-    return 127;
+    return 1;
   }
 
   //
-  // Check if binary supports requested architecture
+  // Check if it's a fat binary
   //
-  if (HeaderInfo.ArchitectureCount > 1) {
-    //
-    // Fat binary - select appropriate slice
-    //
-    BOOLEAN Found = FALSE;
-    for (UINT32 j = 0; j < HeaderInfo.ArchitectureCount; j++) {
-      CONST CHAR8 *ArchName = BinFormatGetMachineName (HeaderInfo.Architectures[j].Machine);
-      if (ArchNamesMatch (ArchName, Arch)) {
-        Found = TRUE;
-        if (Api->SelectArchitecture != NULL) {
-          Api->SelectArchitecture (Context, j);
-        }
+  IsFat = (HeaderInfo.ArchitectureCount > 1);
+
+  //
+  // Check if binary contains requested architecture
+  //
+  if (IsFat) {
+    BOOLEAN ArchFound = FALSE;
+    for (i = 0; i < HeaderInfo.ArchitectureCount; i++) {
+      if (ArchNamesMatch (Arch, BinFormatGetMachineName (HeaderInfo.Architectures[i].Machine))) {
+        ArchFound = TRUE;
         break;
       }
     }
 
-    if (!Found) {
-      fprintf (stderr, "arch: %s: architecture %s not found in fat binary\n", Command[0], Arch);
-      Api->Close (Context);
-      return 1;
-    }
-  } else {
-    //
-    // Thin binary - check if it matches
-    //
-    CONST CHAR8 *BinaryArch = BinFormatGetMachineName (HeaderInfo.Machine);
-    if (!ArchNamesMatch (BinaryArch, Arch)) {
-      fprintf (stderr, "arch: %s: binary is %s, not %s\n", Command[0], BinaryArch, Arch);
+    if (!ArchFound) {
+      fprintf (stderr, "arch: %s: binary does not contain %s slice\n", Command[0], Arch);
       Api->Close (Context);
       return 1;
     }
@@ -328,71 +335,101 @@ ExecuteWithArch (
   //
   // Determine if emulation is needed
   //
-  if (!ArchNamesMatch (Arch, CurrentArch) || Emulated) {
+  if (!ArchNamesMatch (Arch, CurrentArch) || gOptions.Emulated) {
     //
-    // Need emulation - use QEMU
+    // Need emulation via QEMU
     //
     QemuBin = GetQemuEmulator (Arch);
     if (QemuBin == NULL) {
-      fprintf (stderr, "arch: no emulator available for %s\n", Arch);
-      return 127;
+      fprintf (stderr, "arch: no QEMU emulator available for %s\n", Arch);
+      return 1;
     }
 
     //
-    // Build QEMU command line: qemu-<arch> <binary> <args...>
+    // If fat binary, extract thin slice first
     //
-    ExecArgs = malloc (sizeof (CHAR8 *) * (Argc + 2));
+    if (IsFat) {
+      if (ExtractThinSlice (Command[0], Arch, ThinPath, sizeof (ThinPath)) != 0) {
+        return 1;
+      }
+      ExtractedThin = TRUE;
+      chmod (ThinPath, 0755);
+    }
+
+    //
+    // Build QEMU command: qemu-<arch> <binary> <args...>
+    //
     ExecArgs[0] = (CHAR8 *)QemuBin;
-    for (i = 0; i < Argc; i++) {
+    ExecArgs[1] = ExtractedThin ? ThinPath : Command[0];
+    for (i = 1; i < (UINT32)Argc && i < 254; i++) {
       ExecArgs[i + 1] = Command[i];
     }
-    ExecArgs[Argc + 1] = NULL;
+    ExecArgs[i + 1] = NULL;
 
-    printf ("Executing via emulation: %s\n", QemuBin);
-
+    //
+    // Fork and execute via QEMU
+    //
     pid = fork ();
+    if (pid == -1) {
+      perror ("arch: fork failed");
+      if (ExtractedThin) {
+        unlink (ThinPath);
+      }
+      return 1;
+    }
+
     if (pid == 0) {
       //
       // Child process
       //
       execvp (QemuBin, ExecArgs);
       perror ("arch: execvp failed");
-      exit (127);
-    } else if (pid > 0) {
-      //
-      // Parent process
-      //
-      waitpid (pid, &ExitStatus, 0);
-      free (ExecArgs);
-      return WIFEXITED (ExitStatus) ? WEXITSTATUS (ExitStatus) : 1;
-    } else {
-      perror ("arch: fork failed");
-      free (ExecArgs);
-      return 127;
+      exit (1);
     }
-  } else {
+
     //
-    // Native execution
+    // Parent: wait for child
     //
-    pid = fork ();
-    if (pid == 0) {
-      //
-      // Child process
-      //
-      execvp (Command[0], Command);
-      perror ("arch: execvp failed");
-      exit (127);
-    } else if (pid > 0) {
-      //
-      // Parent process
-      //
-      waitpid (pid, &ExitStatus, 0);
-      return WIFEXITED (ExitStatus) ? WEXITSTATUS (ExitStatus) : 1;
-    } else {
-      perror ("arch: fork failed");
-      return 127;
+    waitpid (pid, &ExitStatus, 0);
+
+    //
+    // Clean up temporary file
+    //
+    if (ExtractedThin) {
+      unlink (ThinPath);
     }
+
+    return WIFEXITED (ExitStatus) ? WEXITSTATUS (ExitStatus) : 1;
   }
+
+  //
+  // Native execution using fexecve
+  //
+  fd = open (Command[0], O_RDONLY);
+  if (fd < 0) {
+    perror ("arch: open failed");
+    return 1;
+  }
+
+  //
+  // Build argument array
+  //
+  for (i = 0; i < (UINT32)Argc && i < 255; i++) {
+    ExecArgs[i] = Command[i];
+  }
+  ExecArgs[i] = NULL;
+
+  //
+  // Execute using fexecve
+  //
+  fexecve (fd, ExecArgs, environ);
+
+  //
+  // If we get here, fexecve failed
+  //
+  perror ("arch: fexecve failed");
+  close (fd);
+  return 1;
 }
 
 /**
@@ -401,7 +438,7 @@ ExecuteWithArch (
   @param[in]  argc  Argument count.
   @param[in]  argv  Argument array.
 
-  @return Exit code (0 for success).
+  @return Exit code.
 **/
 INT32
 main (
@@ -409,64 +446,60 @@ main (
   IN  CHAR8   **argv
   )
 {
-  //
-  // Manual parsing for all options since -32 and -64 don't work with getopt
-  //
-  for (INT32 i = 1; i < argc; i++) {
-    if (strcmp (argv[i], "-arch") == 0) {
-      if (i + 1 < argc) {
-        gOptions.TargetArch = argv[i + 1];
-        i++;  // Skip architecture name
-      } else {
-        fprintf (stderr, "arch: -arch requires architecture argument\n");
-        return 1;
-      }
-    } else if (strcmp (argv[i], "-emulated") == 0) {
-      gOptions.Emulated = TRUE;
-    } else if (strcmp (argv[i], "-32") == 0) {
-      gOptions.List32bit = TRUE;
-    } else if (strcmp (argv[i], "-64") == 0) {
-      gOptions.List64bit = TRUE;
-    } else if (strcmp (argv[i], "-h") == 0 || strcmp (argv[i], "--help") == 0) {
-      // Already handled
-      continue;
-    } else {
-      //
-      // Start of command
-      //
-      gOptions.Command = &argv[i];
-      gOptions.CommandArgc = argc - i;
-      break;
-    }
-  }
+  INT32  CommandStart = 0;
 
   //
-  // Execute based on options
+  // No arguments: print current architecture
   //
-  if (gOptions.List32bit || gOptions.List64bit) {
-    ListArchitectures (gOptions.List32bit, gOptions.List64bit);
-    return 0;
-  }
-
-  if (gOptions.Command == NULL) {
-    //
-    // No command - just display current architecture
-    //
+  if (argc < 2) {
     printf ("%s\n", GetCurrentArch ());
     return 0;
   }
 
-  if (gOptions.TargetArch != NULL) {
-    //
-    // Execute with specific architecture
-    //
-    return ExecuteWithArch (gOptions.TargetArch, gOptions.Command,
-                            gOptions.CommandArgc, gOptions.Emulated);
-  } else {
-    //
-    // Execute normally
-    //
-    return ExecuteWithArch (GetCurrentArch (), gOptions.Command,
-                            gOptions.CommandArgc, FALSE);
+  //
+  // Parse options manually
+  //
+  for (INT32 i = 1; i < argc; i++) {
+    if (strcmp (argv[i], "-arch") == 0) {
+      if (i + 1 >= argc) {
+        fprintf (stderr, "arch: -arch requires an argument\n");
+        return 1;
+      }
+      gOptions.Arch = argv[i + 1];
+      i++;
+    } else if (strcmp (argv[i], "-emulated") == 0) {
+      gOptions.Emulated = TRUE;
+    } else if (strcmp (argv[i], "-h") == 0 || strcmp (argv[i], "--help") == 0) {
+      printf ("Usage: arch [-arch <arch>] [-emulated] <command> [args...]\n");
+      printf ("       arch (no arguments to show current architecture)\n");
+      printf ("\n");
+      printf ("Options:\n");
+      printf ("  -arch <arch>  Execute with specified architecture\n");
+      printf ("  -emulated     Force emulation via QEMU\n");
+      printf ("  -h, --help    Show this help\n");
+      printf ("\n");
+      printf ("Examples:\n");
+      printf ("  arch                           # Show current architecture\n");
+      printf ("  arch -arch x86_64 /bin/echo hi # Execute echo with x86_64\n");
+      return 0;
+    } else {
+      //
+      // First non-option is the command
+      //
+      CommandStart = i;
+      break;
+    }
   }
+
+  if (gOptions.Arch == NULL) {
+    fprintf (stderr, "arch: -arch option required when executing commands\n");
+    return 1;
+  }
+
+  if (CommandStart == 0) {
+    fprintf (stderr, "arch: no command specified\n");
+    return 1;
+  }
+
+  return ExecuteWithArch (gOptions.Arch, &argv[CommandStart], argc - CommandStart);
 }

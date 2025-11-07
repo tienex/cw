@@ -39,7 +39,9 @@ DYLD_STUB = $(BIN_DIR)/dyld
 LIB = $(BIN_DIR)/lib
 LINK = $(BIN_DIR)/link
 
-UNIVERSAL_TOOLS = $(NM) $(SIZE) $(STRINGS) $(OBJDUMP_UNIVERSAL) $(LDD) $(OTOOL) $(DUMPBIN) $(LIPO) $(CODESIGN) $(ARCH_TOOL) $(REDO_PREBINDING) $(DYLD_STUB) $(LIB) $(LINK)
+SWITCHTEST = $(BIN_DIR)/switchtest
+
+UNIVERSAL_TOOLS = $(NM) $(SIZE) $(STRINGS) $(OBJDUMP_UNIVERSAL) $(LDD) $(OTOOL) $(DUMPBIN) $(LIPO) $(CODESIGN) $(ARCH_TOOL) $(REDO_PREBINDING) $(DYLD_STUB) $(LIB) $(LINK) $(SWITCHTEST)
 
 ALL_TARGETS = $(EMULATOR) $(ASSEMBLER) $(LINKER) $(OBJDUMP) $(LIBRARIAN) $(COMPILER) $(FILECHECK) $(BINFORMAT_TEST) $(UNIVERSAL_TOOLS)
 
@@ -62,6 +64,10 @@ BINFORMAT_LIB_OBJS = \
 	$(BUILD_DIR)/binformat/LibOmf.o \
 	$(BUILD_DIR)/binformat/LibOrf.o \
 	$(BUILD_DIR)/binformat/LibMinidump.o
+
+# Switches library objects
+SWITCHES_LIB_OBJS = \
+	$(BUILD_DIR)/switches/Switches.o
 
 DISASM_OBJS = \
 	$(BUILD_DIR)/tools/Disassembler.o
@@ -138,6 +144,7 @@ REDO_PREBINDING_OBJS = $(BUILD_DIR)/tools/redo_prebinding.o
 DYLD_STUB_OBJS = $(BUILD_DIR)/tools/dyld.o
 LIB_OBJS = $(BUILD_DIR)/tools/lib.o
 LINK_OBJS = $(BUILD_DIR)/tools/link.o
+SWITCHTEST_OBJS = $(BUILD_DIR)/tools/switchtest.o
 
 # Default target
 all: $(ALL_TARGETS)
@@ -283,6 +290,10 @@ $(LIB): $(LIB_OBJS) | $(BIN_DIR)
 $(LINK): $(LINK_OBJS) | $(BIN_DIR)
 	$(CC) $(LINK_OBJS) -o $(LINK) $(LDFLAGS)
 	@echo "Built: $(LINK)"
+
+$(SWITCHTEST): $(SWITCHTEST_OBJS) $(SWITCHES_LIB_OBJS) | $(BIN_DIR)
+	$(CC) $(SWITCHTEST_OBJS) $(SWITCHES_LIB_OBJS) -o $(SWITCHTEST) $(LDFLAGS)
+	@echo "Built: $(SWITCHTEST)"
 
 # Compile source files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
