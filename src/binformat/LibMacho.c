@@ -259,7 +259,36 @@ MachoWriteFile (
   fclose(File);
   return BINFORMAT_SUCCESS;
 }
-STATIC BINFORMAT_STATUS MachoWriteMemory(IN BINFORMAT_CONTEXT *Ctx, OUT VOID *Buf, IN UINT64 Size, OUT UINT64 *Written) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
+STATIC
+BINFORMAT_STATUS
+MachoWriteMemory (
+  IN  BINFORMAT_CONTEXT  *Context,
+  OUT VOID               *Buffer,
+  IN  UINT64             Size,
+  OUT UINT64             *Written
+  )
+{
+  MACHO_CONTEXT  *MachoCtx;
+
+  if (Context == NULL || Buffer == NULL || Written == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  MachoCtx = MACHO_CONTEXT_FROM_BINFORMAT(Context);
+
+  if (MachoCtx->FileData == NULL || MachoCtx->FileSize == 0) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  if (Size < MachoCtx->FileSize) {
+    return BINFORMAT_ERROR_BUFFER_TOO_SMALL;
+  }
+
+  memcpy(Buffer, MachoCtx->FileData, MachoCtx->FileSize);
+  *Written = MachoCtx->FileSize;
+
+  return BINFORMAT_SUCCESS;
+}
 STATIC
 BINFORMAT_STATUS
 MachoSelectArchitecture (

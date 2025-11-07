@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include "binformat/BinFormat.h"
 
 typedef struct {
@@ -269,7 +270,8 @@ ExecuteWithArch (
   )
 {
   CONST BINFORMAT_API       *Api;
-  BINFORMAT_CONTEXT         *Context;
+  BINFORMAT_CONTEXT         *FatContext;
+  BINFORMAT_CONTEXT         *ThinContext;
   BINFORMAT_STATUS          Status;
   BINFORMAT_HEADER_INFO     HeaderInfo;
   CONST CHAR8               *CurrentArch;
@@ -280,6 +282,7 @@ ExecuteWithArch (
   INT32                     ExitStatus;
   BOOLEAN                   IsFat = FALSE;
   UINT32                    i;
+  UINT32                    ArchIndex = 0;
   CHAR8                     ThinPath[256];
   BOOLEAN                   ExtractedThin = FALSE;
 
@@ -293,16 +296,16 @@ ExecuteWithArch (
   //
   // Detect binary format
   //
-  Api = BinFormatDetectFile (Command[0], &Context, TRUE);
+  Api = BinFormatDetectFile (Command[0], &FatContext, TRUE);
   if (Api == NULL) {
     fprintf (stderr, "arch: %s: cannot detect file format\n", Command[0]);
     return 1;
   }
 
-  Status = Api->GetHeader (Context, &HeaderInfo);
+  Status = Api->GetHeader (FatContext, &HeaderInfo);
   if (BINFORMAT_IS_ERROR (Status)) {
     fprintf (stderr, "arch: %s: cannot get header info\n", Command[0]);
-    Api->Close (Context);
+    Api->Close (FatContext);
     return 1;
   }
 
@@ -319,18 +322,17 @@ ExecuteWithArch (
     for (i = 0; i < HeaderInfo.ArchitectureCount; i++) {
       if (ArchNamesMatch (Arch, BinFormatGetMachineName (HeaderInfo.Architectures[i].Machine))) {
         ArchFound = TRUE;
+        ArchIndex = i;
         break;
       }
     }
 
     if (!ArchFound) {
       fprintf (stderr, "arch: %s: binary does not contain %s slice\n", Command[0], Arch);
-      Api->Close (Context);
+      Api->Close (FatContext);
       return 1;
     }
   }
-
-  Api->Close (Context);
 
   //
   // Determine if emulation is needed
@@ -342,22 +344,86 @@ ExecuteWithArch (
     QemuBin = GetQemuEmulator (Arch);
     if (QemuBin == NULL) {
       fprintf (stderr, "arch: no QEMU emulator available for %s\n", Arch);
+      Api->Close (FatContext);
       return 1;
     }
 
     //
-    // If fat binary, extract thin slice first
+    // For fat binaries, extract thin slice to memfd
     //
     if (IsFat) {
-      if (ExtractThinSlice (Command[0], Arch, ThinPath, sizeof (ThinPath)) != 0) {
+      if (Api->ExtractThin == NULL) {
+        fprintf (stderr, "arch: ExtractThin not supported\n");
+        Api->Close (FatContext);
         return 1;
       }
+
+      Status = Api->ExtractThin (FatContext, ArchIndex, &ThinContext);
+      if (BINFORMAT_IS_ERROR (Status)) {
+        fprintf (stderr, "arch: failed to extract thin slice\n");
+        Api->Close (FatContext);
+        return 1;
+      }
+
+      //
+      // Create memfd for the thin slice
+      //
+      fd = memfd_create ("arch_qemu", MFD_CLOEXEC);
+      if (fd < 0) {
+        perror ("arch: memfd_create failed");
+        Api->Close (ThinContext);
+        Api->Close (FatContext);
+        return 1;
+      }
+
+      //
+      // Write thin slice to memfd using WriteMemory
+      //
+      UINT8  *Buffer;
+      UINT64 BufferSize = 64 * 1024 * 1024;  // 64MB should be enough
+      UINT64 Written;
+
+      Buffer = malloc (BufferSize);
+      if (Buffer == NULL) {
+        close (fd);
+        Api->Close (ThinContext);
+        Api->Close (FatContext);
+        return 1;
+      }
+
+      Status = Api->WriteMemory (ThinContext, Buffer, BufferSize, &Written);
+      if (BINFORMAT_IS_ERROR (Status)) {
+        fprintf (stderr, "arch: failed to write thin slice to memory\n");
+        free (Buffer);
+        close (fd);
+        Api->Close (ThinContext);
+        Api->Close (FatContext);
+        return 1;
+      }
+
+      if (write (fd, Buffer, Written) != (ssize_t)Written) {
+        perror ("arch: write to memfd failed");
+        free (Buffer);
+        close (fd);
+        Api->Close (ThinContext);
+        Api->Close (FatContext);
+        return 1;
+      }
+
+      free (Buffer);
+      Api->Close (ThinContext);
+
+      //
+      // Build /proc/self/fd/N path
+      //
+      snprintf (ThinPath, sizeof (ThinPath), "/proc/self/fd/%d", fd);
       ExtractedThin = TRUE;
-      chmod (ThinPath, 0755);
     }
 
+    Api->Close (FatContext);
+
     //
-    // Build QEMU command: qemu-<arch> <binary> <args...>
+    // Build QEMU command: qemu-<arch> /proc/self/fd/N <args...>
     //
     ExecArgs[0] = (CHAR8 *)QemuBin;
     ExecArgs[1] = ExtractedThin ? ThinPath : Command[0];
@@ -367,48 +433,105 @@ ExecuteWithArch (
     ExecArgs[i + 1] = NULL;
 
     //
-    // Fork and execute via QEMU
+    // Execute via QEMU (no fork needed, fd will be inherited)
     //
-    pid = fork ();
-    if (pid == -1) {
-      perror ("arch: fork failed");
-      if (ExtractedThin) {
-        unlink (ThinPath);
-      }
-      return 1;
-    }
-
-    if (pid == 0) {
-      //
-      // Child process
-      //
-      execvp (QemuBin, ExecArgs);
-      perror ("arch: execvp failed");
-      exit (1);
-    }
+    execvp (QemuBin, ExecArgs);
 
     //
-    // Parent: wait for child
+    // If we get here, execvp failed
     //
-    waitpid (pid, &ExitStatus, 0);
-
-    //
-    // Clean up temporary file
-    //
+    perror ("arch: execvp failed");
     if (ExtractedThin) {
-      unlink (ThinPath);
+      close (fd);
     }
-
-    return WIFEXITED (ExitStatus) ? WEXITSTATUS (ExitStatus) : 1;
+    return 1;
   }
 
   //
   // Native execution using fexecve
   //
-  fd = open (Command[0], O_RDONLY);
-  if (fd < 0) {
-    perror ("arch: open failed");
-    return 1;
+  if (IsFat) {
+    //
+    // For fat binaries, extract thin slice to memfd
+    //
+    if (Api->ExtractThin == NULL) {
+      fprintf (stderr, "arch: ExtractThin not supported\n");
+      Api->Close (FatContext);
+      return 1;
+    }
+
+    Status = Api->ExtractThin (FatContext, ArchIndex, &ThinContext);
+    if (BINFORMAT_IS_ERROR (Status)) {
+      fprintf (stderr, "arch: failed to extract thin slice\n");
+      Api->Close (FatContext);
+      return 1;
+    }
+
+    //
+    // Create memfd for the thin slice
+    //
+    fd = memfd_create ("arch_exec", MFD_CLOEXEC);
+    if (fd < 0) {
+      perror ("arch: memfd_create failed");
+      Api->Close (ThinContext);
+      Api->Close (FatContext);
+      return 1;
+    }
+
+    //
+    // Write thin slice to memfd using WriteMemory
+    //
+    UINT8  *Buffer;
+    UINT64 BufferSize = 64 * 1024 * 1024;  // 64MB should be enough
+    UINT64 Written;
+
+    Buffer = malloc (BufferSize);
+    if (Buffer == NULL) {
+      close (fd);
+      Api->Close (ThinContext);
+      Api->Close (FatContext);
+      return 1;
+    }
+
+    Status = Api->WriteMemory (ThinContext, Buffer, BufferSize, &Written);
+    if (BINFORMAT_IS_ERROR (Status)) {
+      fprintf (stderr, "arch: failed to write thin slice to memory\n");
+      free (Buffer);
+      close (fd);
+      Api->Close (ThinContext);
+      Api->Close (FatContext);
+      return 1;
+    }
+
+    if (write (fd, Buffer, Written) != (ssize_t)Written) {
+      perror ("arch: write to memfd failed");
+      free (Buffer);
+      close (fd);
+      Api->Close (ThinContext);
+      Api->Close (FatContext);
+      return 1;
+    }
+
+    free (Buffer);
+
+    //
+    // Seek back to start
+    //
+    lseek (fd, 0, SEEK_SET);
+
+    Api->Close (ThinContext);
+    Api->Close (FatContext);
+  } else {
+    //
+    // For thin binaries, open the file directly
+    //
+    Api->Close (FatContext);
+
+    fd = open (Command[0], O_RDONLY);
+    if (fd < 0) {
+      perror ("arch: open failed");
+      return 1;
+    }
   }
 
   //
