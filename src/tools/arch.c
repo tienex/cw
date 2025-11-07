@@ -17,6 +17,9 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#ifdef __FreeBSD__
+#include <sys/types.h>
+#endif
 #include "binformat/BinFormat.h"
 
 typedef struct {
@@ -104,6 +107,99 @@ ArchNamesMatch (
 }
 
 /**
+  Write thin slice to file descriptor efficiently.
+
+  Uses platform-specific methods to avoid intermediate buffers:
+  - Linux: mmap to memfd
+  - Other systems: write() with temporary buffer
+
+  @param[in]  Api          Binary format API.
+  @param[in]  Context      Thin binary context.
+  @param[in]  fd           File descriptor to write to.
+
+  @retval 0  Success.
+  @retval 1  Error.
+**/
+STATIC
+INT32
+WriteThinToFd (
+  IN  CONST BINFORMAT_API  *Api,
+  IN  BINFORMAT_CONTEXT    *Context,
+  IN  INT32                fd
+  )
+{
+  BINFORMAT_STATUS  Status;
+  UINT64            ThinSize;
+  UINT64            Written;
+
+  //
+  // Query size
+  //
+  Status = Api->WriteMemory (Context, NULL, 0, &ThinSize);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "arch: failed to query thin slice size\n");
+    return 1;
+  }
+
+#if defined(__linux__) || defined(__FreeBSD__)
+  //
+  // Use mmap for zero-copy on Linux/FreeBSD
+  //
+  VOID  *MappedMem;
+
+  if (ftruncate (fd, ThinSize) < 0) {
+    perror ("arch: ftruncate failed");
+    return 1;
+  }
+
+  MappedMem = mmap (NULL, ThinSize, PROT_WRITE, MAP_SHARED, fd, 0);
+  if (MappedMem == MAP_FAILED) {
+    perror ("arch: mmap failed");
+    return 1;
+  }
+
+  Status = Api->WriteMemory (Context, MappedMem, ThinSize, &Written);
+  munmap (MappedMem, ThinSize);
+
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "arch: failed to write thin slice\n");
+    return 1;
+  }
+
+  lseek (fd, 0, SEEK_SET);
+#else
+  //
+  // Fallback: use malloc + write for other systems
+  //
+  UINT8  *Buffer;
+
+  Buffer = malloc (ThinSize);
+  if (Buffer == NULL) {
+    fprintf (stderr, "arch: out of memory\n");
+    return 1;
+  }
+
+  Status = Api->WriteMemory (Context, Buffer, ThinSize, &Written);
+  if (BINFORMAT_IS_ERROR (Status)) {
+    fprintf (stderr, "arch: failed to write thin slice to memory\n");
+    free (Buffer);
+    return 1;
+  }
+
+  if (write (fd, Buffer, Written) != (ssize_t)Written) {
+    perror ("arch: write failed");
+    free (Buffer);
+    return 1;
+  }
+
+  free (Buffer);
+  lseek (fd, 0, SEEK_SET);
+#endif
+
+  return 0;
+}
+
+/**
   Get QEMU emulator for architecture.
 
   @param[in]  Arch  Architecture name.
@@ -141,8 +237,6 @@ GetQemuEmulator (
   return NULL;
 }
 
-}
-
 /**
   Execute with specified architecture using fexecve.
 
@@ -169,8 +263,6 @@ ExecuteWithArch (
   CONST CHAR8               *QemuBin;
   CHAR8                     *ExecArgs[256];
   INT32                     fd;
-  pid_t                     pid;
-  INT32                     ExitStatus;
   BOOLEAN                   IsFat = FALSE;
   UINT32                    i;
   UINT32                    ArchIndex = 0;
@@ -280,40 +372,15 @@ ExecuteWithArch (
       }
 
       //
-      // Write thin slice to memfd using WriteMemory
+      // Write thin slice to memfd using efficient method
       //
-      UINT8  *Buffer;
-      UINT64 BufferSize = 64 * 1024 * 1024;  // 64MB should be enough
-      UINT64 Written;
-
-      Buffer = malloc (BufferSize);
-      if (Buffer == NULL) {
+      if (WriteThinToFd (Api, ThinContext, fd) != 0) {
         close (fd);
         Api->Close (ThinContext);
         Api->Close (FatContext);
         return 1;
       }
 
-      Status = Api->WriteMemory (ThinContext, Buffer, BufferSize, &Written);
-      if (BINFORMAT_IS_ERROR (Status)) {
-        fprintf (stderr, "arch: failed to write thin slice to memory\n");
-        free (Buffer);
-        close (fd);
-        Api->Close (ThinContext);
-        Api->Close (FatContext);
-        return 1;
-      }
-
-      if (write (fd, Buffer, Written) != (ssize_t)Written) {
-        perror ("arch: write to memfd failed");
-        free (Buffer);
-        close (fd);
-        Api->Close (ThinContext);
-        Api->Close (FatContext);
-        return 1;
-      }
-
-      free (Buffer);
       Api->Close (ThinContext);
 
       //
@@ -372,8 +439,9 @@ ExecuteWithArch (
     }
 
     //
-    // Create memfd for the thin slice
+    // Create anonymous memory file descriptor for the thin slice
     //
+#if defined(__linux__)
     fd = memfd_create ("arch_exec", MFD_CLOEXEC);
     if (fd < 0) {
       perror ("arch: memfd_create failed");
@@ -381,47 +449,40 @@ ExecuteWithArch (
       Api->Close (FatContext);
       return 1;
     }
+#elif defined(__FreeBSD__)
+    //
+    // FreeBSD: use shm_open with SHM_ANON
+    //
+    fd = shm_open (SHM_ANON, O_RDWR | O_CLOEXEC, 0600);
+    if (fd < 0) {
+      perror ("arch: shm_open failed");
+      Api->Close (ThinContext);
+      Api->Close (FatContext);
+      return 1;
+    }
+#else
+    //
+    // Other systems: use regular tmpfile
+    //
+    FILE *tmpf = tmpfile ();
+    if (tmpf == NULL) {
+      perror ("arch: tmpfile failed");
+      Api->Close (ThinContext);
+      Api->Close (FatContext);
+      return 1;
+    }
+    fd = fileno (tmpf);
+#endif
 
     //
-    // Write thin slice to memfd using WriteMemory
+    // Write thin slice efficiently
     //
-    UINT8  *Buffer;
-    UINT64 BufferSize = 64 * 1024 * 1024;  // 64MB should be enough
-    UINT64 Written;
-
-    Buffer = malloc (BufferSize);
-    if (Buffer == NULL) {
+    if (WriteThinToFd (Api, ThinContext, fd) != 0) {
       close (fd);
       Api->Close (ThinContext);
       Api->Close (FatContext);
       return 1;
     }
-
-    Status = Api->WriteMemory (ThinContext, Buffer, BufferSize, &Written);
-    if (BINFORMAT_IS_ERROR (Status)) {
-      fprintf (stderr, "arch: failed to write thin slice to memory\n");
-      free (Buffer);
-      close (fd);
-      Api->Close (ThinContext);
-      Api->Close (FatContext);
-      return 1;
-    }
-
-    if (write (fd, Buffer, Written) != (ssize_t)Written) {
-      perror ("arch: write to memfd failed");
-      free (Buffer);
-      close (fd);
-      Api->Close (ThinContext);
-      Api->Close (FatContext);
-      return 1;
-    }
-
-    free (Buffer);
-
-    //
-    // Seek back to start
-    //
-    lseek (fd, 0, SEEK_SET);
 
     Api->Close (ThinContext);
     Api->Close (FatContext);
