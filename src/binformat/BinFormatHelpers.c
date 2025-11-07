@@ -416,67 +416,199 @@ BinFormatNormalizeArchName(
   // ARM64 variants
   //
   if (strcasecmp (ArchName, "arm64") == 0 ||
-      strcasecmp (ArchName, "aarch64") == 0) {
+      strcasecmp (ArchName, "aarch64") == 0 ||
+      strcasecmp (ArchName, "arm64v8") == 0 ||
+      strcasecmp (ArchName, "armv8") == 0 ||
+      strcasecmp (ArchName, "armv8a") == 0 ||
+      strcasecmp (ArchName, "armv8-a") == 0 ||
+      strcasecmp (ArchName, "arm64e") == 0) {
     return "arm64";
   }
 
   //
-  // ARM variants
+  // ARM 32-bit variants
   //
   if (strcasecmp (ArchName, "arm") == 0 ||
       strcasecmp (ArchName, "armv7") == 0 ||
       strcasecmp (ArchName, "armv7l") == 0 ||
-      strcasecmp (ArchName, "armv6") == 0) {
+      strcasecmp (ArchName, "armv7a") == 0 ||
+      strcasecmp (ArchName, "armv7-a") == 0 ||
+      strcasecmp (ArchName, "armv7m") == 0 ||
+      strcasecmp (ArchName, "armv7-m") == 0 ||
+      strcasecmp (ArchName, "armv6") == 0 ||
+      strcasecmp (ArchName, "armv6l") == 0 ||
+      strcasecmp (ArchName, "armv5") == 0 ||
+      strcasecmp (ArchName, "armv5t") == 0 ||
+      strcasecmp (ArchName, "armv5te") == 0 ||
+      strcasecmp (ArchName, "armv5tej") == 0 ||
+      strcasecmp (ArchName, "armv4") == 0 ||
+      strcasecmp (ArchName, "armv4t") == 0 ||
+      strcasecmp (ArchName, "armhf") == 0 ||
+      strcasecmp (ArchName, "armel") == 0) {
     return "arm";
   }
 
   //
-  // PowerPC variants
+  // PowerPC 32-bit variants
   //
   if (strcasecmp (ArchName, "ppc") == 0 ||
-      strcasecmp (ArchName, "powerpc") == 0) {
+      strcasecmp (ArchName, "powerpc") == 0 ||
+      strcasecmp (ArchName, "ppc32") == 0 ||
+      strcasecmp (ArchName, "powerpc32") == 0) {
     return "ppc";
   }
 
+  //
+  // PowerPC 64-bit variants (big endian)
+  //
   if (strcasecmp (ArchName, "ppc64") == 0 ||
       strcasecmp (ArchName, "powerpc64") == 0) {
     return "ppc64";
   }
 
   //
-  // MIPS variants
+  // PowerPC 64-bit little endian
+  //
+  if (strcasecmp (ArchName, "ppc64le") == 0 ||
+      strcasecmp (ArchName, "powerpc64le") == 0 ||
+      strcasecmp (ArchName, "ppc64el") == 0) {
+    return "ppc64le";
+  }
+
+  //
+  // MIPS 32-bit variants
   //
   if (strcasecmp (ArchName, "mips") == 0 ||
-      strcasecmp (ArchName, "mipsel") == 0) {
+      strcasecmp (ArchName, "mipsel") == 0 ||
+      strcasecmp (ArchName, "mipseb") == 0 ||
+      strcasecmp (ArchName, "mips32") == 0 ||
+      strcasecmp (ArchName, "mips32el") == 0) {
     return "mips";
   }
 
+  //
+  // MIPS 64-bit variants
+  //
   if (strcasecmp (ArchName, "mips64") == 0 ||
-      strcasecmp (ArchName, "mips64el") == 0) {
+      strcasecmp (ArchName, "mips64el") == 0 ||
+      strcasecmp (ArchName, "mips64r6") == 0 ||
+      strcasecmp (ArchName, "mipsn32") == 0) {
     return "mips64";
   }
 
   //
-  // RISC-V variants
+  // RISC-V 64-bit variants
   //
   if (strcasecmp (ArchName, "riscv64") == 0 ||
-      strcasecmp (ArchName, "riscv") == 0) {
+      strcasecmp (ArchName, "riscv") == 0 ||
+      strcasecmp (ArchName, "rv64") == 0 ||
+      strcasecmp (ArchName, "riscv64gc") == 0) {
     return "riscv64";
   }
 
-  if (strcasecmp (ArchName, "riscv32") == 0) {
+  //
+  // RISC-V 32-bit variants
+  //
+  if (strcasecmp (ArchName, "riscv32") == 0 ||
+      strcasecmp (ArchName, "rv32") == 0 ||
+      strcasecmp (ArchName, "riscv32gc") == 0) {
     return "riscv32";
   }
 
   //
-  // SPARC variants
+  // SPARC 32-bit variants
   //
-  if (strcasecmp (ArchName, "sparc") == 0) {
+  if (strcasecmp (ArchName, "sparc") == 0 ||
+      strcasecmp (ArchName, "sparcv8") == 0 ||
+      strcasecmp (ArchName, "sparcv7") == 0) {
     return "sparc";
   }
 
-  if (strcasecmp (ArchName, "sparc64") == 0) {
+  //
+  // SPARC 64-bit variants
+  //
+  if (strcasecmp (ArchName, "sparc64") == 0 ||
+      strcasecmp (ArchName, "sparcv9") == 0 ||
+      strcasecmp (ArchName, "ultrasparc") == 0) {
     return "sparc64";
+  }
+
+  //
+  // Alpha variants
+  //
+  if (strcasecmp (ArchName, "alpha") == 0 ||
+      strcasecmp (ArchName, "alphaev56") == 0 ||
+      strcasecmp (ArchName, "alphaev6") == 0 ||
+      strcasecmp (ArchName, "alphaev67") == 0 ||
+      strcasecmp (ArchName, "alphaev68") == 0 ||
+      strcasecmp (ArchName, "alphaev7") == 0) {
+    return "alpha";
+  }
+
+  //
+  // M68K variants
+  //
+  if (strcasecmp (ArchName, "m68k") == 0 ||
+      strcasecmp (ArchName, "m68000") == 0 ||
+      strcasecmp (ArchName, "68000") == 0 ||
+      strcasecmp (ArchName, "68k") == 0) {
+    return "m68k";
+  }
+
+  //
+  // S390 variants
+  //
+  if (strcasecmp (ArchName, "s390") == 0) {
+    return "s390";
+  }
+
+  if (strcasecmp (ArchName, "s390x") == 0) {
+    return "s390x";
+  }
+
+  //
+  // HPPA/PA-RISC variants
+  //
+  if (strcasecmp (ArchName, "hppa") == 0 ||
+      strcasecmp (ArchName, "parisc") == 0) {
+    return "hppa";
+  }
+
+  if (strcasecmp (ArchName, "hppa64") == 0 ||
+      strcasecmp (ArchName, "parisc64") == 0) {
+    return "hppa64";
+  }
+
+  //
+  // IA-64 variants
+  //
+  if (strcasecmp (ArchName, "ia64") == 0 ||
+      strcasecmp (ArchName, "itanium") == 0) {
+    return "ia64";
+  }
+
+  //
+  // SuperH variants
+  //
+  if (strcasecmp (ArchName, "sh") == 0 ||
+      strcasecmp (ArchName, "sh4") == 0 ||
+      strcasecmp (ArchName, "sh4a") == 0 ||
+      strcasecmp (ArchName, "sh3") == 0 ||
+      strcasecmp (ArchName, "sh2") == 0) {
+    return "sh";
+  }
+
+  //
+  // LoongArch variants
+  //
+  if (strcasecmp (ArchName, "loongarch64") == 0 ||
+      strcasecmp (ArchName, "loong64") == 0) {
+    return "loongarch64";
+  }
+
+  if (strcasecmp (ArchName, "loongarch32") == 0 ||
+      strcasecmp (ArchName, "loong32") == 0) {
+    return "loongarch32";
   }
 
   //

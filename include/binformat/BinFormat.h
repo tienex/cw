@@ -1651,12 +1651,21 @@ BinFormatGetSymbolTypeChar(
 /**
   Normalize architecture name to canonical form.
 
-  Handles various naming conventions:
-  - x86_64, x86-64, amd64, x64, ia32e -> x86_64
-  - i386, i486, i586, i686, i?86, ix86, x86, ia32 -> i386
-  - arm64, aarch64 -> arm64
-  - arm, armv7, armv7l, armv6 -> arm
-  - Plus PowerPC, MIPS, RISC-V, and SPARC variants
+  Handles comprehensive naming conventions for all major architectures:
+
+  x86 (32-bit): i386, i486, i586, i686, i?86, ix86, x86, ia32 -> i386
+  x86-64: x86_64, x86-64, amd64, x64, ia32e -> x86_64
+
+  ARM (32-bit): arm, armv4-armv7, armhf, armel -> arm
+  ARM (64-bit): arm64, aarch64, armv8, arm64e -> arm64
+
+  PowerPC: ppc/powerpc/ppc32 -> ppc, ppc64 -> ppc64, ppc64le/ppc64el -> ppc64le
+  MIPS: mips/mipsel/mipseb/mips32 -> mips, mips64/mips64el -> mips64
+  RISC-V: riscv32/rv32 -> riscv32, riscv64/rv64 -> riscv64
+  SPARC: sparc/sparcv7-v8 -> sparc, sparc64/sparcv9/ultrasparc -> sparc64
+
+  Legacy: alpha, m68k/68k, s390/s390x, hppa/parisc, ia64/itanium, sh/sh4
+  Modern: loongarch32/64
 
   @param[in]   ArchName          Architecture name to normalize.
 
