@@ -364,6 +364,234 @@ BinFormatGetSymbolTypeChar(
 }
 
 /**
+  Get human-readable name for relocation type.
+
+  @param[in]   RelocType         Relocation type.
+
+  @return Pointer to relocation type name string.
+**/
+CONST CHAR8 *
+BinFormatGetRelocTypeName(
+  IN  BINFORMAT_RELOC_TYPE  RelocType
+  )
+{
+  switch (RelocType) {
+    case BinRelocNone:              return "NONE";
+
+    // Absolute
+    case BinRelocAbsolute8:         return "ABSOLUTE8";
+    case BinRelocAbsolute16:        return "ABSOLUTE16";
+    case BinRelocAbsolute32:        return "ABSOLUTE32";
+    case BinRelocAbsolute64:        return "ABSOLUTE64";
+
+    // Relative
+    case BinRelocRelative8:         return "RELATIVE8";
+    case BinRelocRelative16:        return "RELATIVE16";
+    case BinRelocRelative32:        return "RELATIVE32";
+    case BinRelocRelative64:        return "RELATIVE64";
+
+    // PC-relative
+    case BinRelocPCRelative8:       return "PC_RELATIVE8";
+    case BinRelocPCRelative16:      return "PC_RELATIVE16";
+    case BinRelocPCRelative32:      return "PC_RELATIVE32";
+    case BinRelocPCRelative64:      return "PC_RELATIVE64";
+
+    // GOT
+    case BinRelocGOTOffset32:       return "GOT_OFFSET32";
+    case BinRelocGOTOffset64:       return "GOT_OFFSET64";
+    case BinRelocGOTPCRelative32:   return "GOT_PCREL32";
+    case BinRelocGOTPCRelative64:   return "GOT_PCREL64";
+    case BinRelocGOTLoad:           return "GOT_LOAD";
+    case BinRelocGOTPageOffset:     return "GOT_PAGE_OFFSET";
+
+    // PLT
+    case BinRelocPLT32:             return "PLT32";
+    case BinRelocPLT64:             return "PLT64";
+    case BinRelocPLTPCRelative32:   return "PLT_PCREL32";
+    case BinRelocPLTPCRelative64:   return "PLT_PCREL64";
+
+    // Dynamic linking
+    case BinRelocGlobDat:           return "GLOB_DAT";
+    case BinRelocJumpSlot:          return "JUMP_SLOT";
+    case BinRelocCopy:              return "COPY";
+    case BinRelocRelativeLoad:      return "RELATIVE_LOAD";
+
+    // TLS
+    case BinRelocTLSOffset:         return "TLS_OFFSET";
+    case BinRelocTLSDescriptor:     return "TLS_DESC";
+    case BinRelocTLSIndex:          return "TLS_INDEX";
+    case BinRelocTLSGD:             return "TLS_GD";
+    case BinRelocTLSLD:             return "TLS_LD";
+    case BinRelocTLSIE:             return "TLS_IE";
+    case BinRelocTLSLE:             return "TLS_LE";
+    case BinRelocTLSGDCall:         return "TLS_GD_CALL";
+    case BinRelocTLSLDCall:         return "TLS_LD_CALL";
+
+    // Section-relative
+    case BinRelocSectionOffset32:   return "SECTION_OFFSET32";
+    case BinRelocSectionOffset64:   return "SECTION_OFFSET64";
+    case BinRelocSecRel:            return "SECREL";
+
+    // Page/offset
+    case BinRelocPageOffset21:      return "PAGE_OFFSET21";
+    case BinRelocPagePCRelative:    return "PAGE_PCREL";
+    case BinRelocPageOffset12:      return "PAGE_OFFSET12";
+
+    // Branch
+    case BinRelocBranch14:          return "BRANCH14";
+    case BinRelocBranch24:          return "BRANCH24";
+    case BinRelocBranch26:          return "BRANCH26";
+    case BinRelocBranch32:          return "BRANCH32";
+
+    // Special
+    case BinRelocSize32:            return "SIZE32";
+    case BinRelocSize64:            return "SIZE64";
+    case BinRelocSubtract:          return "SUBTRACT";
+    case BinRelocPair:              return "PAIR";
+    case BinRelocLocalPC:           return "LOCAL_PC";
+
+    // IFunc
+    case BinRelocIRelative:         return "IRELATIVE";
+
+    default:
+      if (RelocType >= BinRelocFormatSpecific) {
+        return "FORMAT_SPECIFIC";
+      }
+      return "UNKNOWN";
+  }
+}
+
+/**
+  Get relocation size in bytes.
+
+  @param[in]   RelocType         Relocation type.
+
+  @return Size in bytes (0, 1, 2, 4, 8), or 0 if unknown.
+**/
+UINT8
+BinFormatGetRelocSize(
+  IN  BINFORMAT_RELOC_TYPE  RelocType
+  )
+{
+  switch (RelocType) {
+    // 8-bit
+    case BinRelocAbsolute8:
+    case BinRelocRelative8:
+    case BinRelocPCRelative8:
+      return 1;
+
+    // 16-bit
+    case BinRelocAbsolute16:
+    case BinRelocRelative16:
+    case BinRelocPCRelative16:
+      return 2;
+
+    // 32-bit
+    case BinRelocAbsolute32:
+    case BinRelocRelative32:
+    case BinRelocPCRelative32:
+    case BinRelocGOTOffset32:
+    case BinRelocGOTPCRelative32:
+    case BinRelocPLT32:
+    case BinRelocPLTPCRelative32:
+    case BinRelocSectionOffset32:
+    case BinRelocSize32:
+    case BinRelocBranch32:
+      return 4;
+
+    // 64-bit
+    case BinRelocAbsolute64:
+    case BinRelocRelative64:
+    case BinRelocPCRelative64:
+    case BinRelocGOTOffset64:
+    case BinRelocGOTPCRelative64:
+    case BinRelocPLT64:
+    case BinRelocPLTPCRelative64:
+    case BinRelocSectionOffset64:
+    case BinRelocSize64:
+      return 8;
+
+    // Variable or special
+    case BinRelocBranch14:
+    case BinRelocPageOffset12:
+      return 2;
+
+    case BinRelocPageOffset21:
+    case BinRelocBranch24:
+    case BinRelocBranch26:
+      return 4;
+
+    default:
+      return 0;  // Unknown or not applicable
+  }
+}
+
+/**
+  Check if relocation type is PC-relative.
+
+  @param[in]   RelocType         Relocation type.
+
+  @retval TRUE   Relocation is PC-relative.
+  @retval FALSE  Relocation is not PC-relative.
+**/
+BOOLEAN
+BinFormatIsRelocPCRelative(
+  IN  BINFORMAT_RELOC_TYPE  RelocType
+  )
+{
+  switch (RelocType) {
+    case BinRelocPCRelative8:
+    case BinRelocPCRelative16:
+    case BinRelocPCRelative32:
+    case BinRelocPCRelative64:
+    case BinRelocGOTPCRelative32:
+    case BinRelocGOTPCRelative64:
+    case BinRelocPLTPCRelative32:
+    case BinRelocPLTPCRelative64:
+    case BinRelocPagePCRelative:
+    case BinRelocLocalPC:
+    case BinRelocBranch14:
+    case BinRelocBranch24:
+    case BinRelocBranch26:
+    case BinRelocBranch32:
+      return TRUE;
+
+    default:
+      return FALSE;
+  }
+}
+
+/**
+  Check if relocation type requires addend.
+
+  @param[in]   RelocType         Relocation type.
+
+  @retval TRUE   Relocation requires addend (RELA-style).
+  @retval FALSE  Relocation doesn't require addend (REL-style).
+**/
+BOOLEAN
+BinFormatRelocNeedsAddend(
+  IN  BINFORMAT_RELOC_TYPE  RelocType
+  )
+{
+  //
+  // Most relocation types can use addends.
+  // Only a few special types don't need them.
+  //
+  switch (RelocType) {
+    case BinRelocNone:
+    case BinRelocCopy:
+    case BinRelocJumpSlot:
+    case BinRelocGlobDat:
+    case BinRelocIRelative:
+      return FALSE;
+
+    default:
+      return TRUE;
+  }
+}
+
+/**
   Normalize architecture name to canonical form.
 
   Handles various naming conventions:

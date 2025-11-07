@@ -234,24 +234,119 @@ typedef enum {
 ///
 /// Relocation types (generic, normalized across formats)
 ///
+/// This enum provides a unified relocation type system that abstracts
+/// away format-specific differences. Format libraries map their native
+/// relocation types to these universal types.
+///
 typedef enum {
+  //
+  // No relocation
+  //
   BinRelocNone = 0,
-  BinRelocAbsolute32 = 1,
-  BinRelocAbsolute64 = 2,
-  BinRelocRelative32 = 3,
-  BinRelocRelative64 = 4,
-  BinRelocPCRelative32 = 5,
-  BinRelocPCRelative64 = 6,
-  BinRelocGOT32 = 7,
-  BinRelocGOT64 = 8,
-  BinRelocPLT32 = 9,
-  BinRelocPLT64 = 10,
-  BinRelocCopy = 11,
-  BinRelocGlobDat = 12,
-  BinRelocJumpSlot = 13,
-  BinRelocRelative = 14,
-  BinRelocTlsDescriptor = 15,
-  BinRelocTlsOffset = 16
+
+  //
+  // Absolute relocations (direct address)
+  //
+  BinRelocAbsolute8 = 1,        ///< 8-bit absolute address
+  BinRelocAbsolute16 = 2,       ///< 16-bit absolute address
+  BinRelocAbsolute32 = 3,       ///< 32-bit absolute address
+  BinRelocAbsolute64 = 4,       ///< 64-bit absolute address
+
+  //
+  // Relative relocations (base-relative)
+  //
+  BinRelocRelative8 = 10,       ///< 8-bit base-relative
+  BinRelocRelative16 = 11,      ///< 16-bit base-relative
+  BinRelocRelative32 = 12,      ///< 32-bit base-relative
+  BinRelocRelative64 = 13,      ///< 64-bit base-relative
+
+  //
+  // PC-relative relocations (instruction pointer relative)
+  //
+  BinRelocPCRelative8 = 20,     ///< 8-bit PC-relative
+  BinRelocPCRelative16 = 21,    ///< 16-bit PC-relative
+  BinRelocPCRelative32 = 22,    ///< 32-bit PC-relative
+  BinRelocPCRelative64 = 23,    ///< 64-bit PC-relative
+
+  //
+  // GOT (Global Offset Table) relocations
+  //
+  BinRelocGOTOffset32 = 30,     ///< 32-bit offset into GOT
+  BinRelocGOTOffset64 = 31,     ///< 64-bit offset into GOT
+  BinRelocGOTPCRelative32 = 32, ///< 32-bit GOT entry PC-relative
+  BinRelocGOTPCRelative64 = 33, ///< 64-bit GOT entry PC-relative
+  BinRelocGOTLoad = 34,         ///< GOT load annotation
+  BinRelocGOTPageOffset = 35,   ///< GOT page offset (ARM64)
+
+  //
+  // PLT (Procedure Linkage Table) relocations
+  //
+  BinRelocPLT32 = 40,           ///< 32-bit PLT entry
+  BinRelocPLT64 = 41,           ///< 64-bit PLT entry
+  BinRelocPLTPCRelative32 = 42, ///< 32-bit PLT entry PC-relative
+  BinRelocPLTPCRelative64 = 43, ///< 64-bit PLT entry PC-relative
+
+  //
+  // Dynamic linking relocations
+  //
+  BinRelocGlobDat = 50,         ///< Create GOT entry
+  BinRelocJumpSlot = 51,        ///< Create PLT entry
+  BinRelocCopy = 52,            ///< Copy symbol at runtime
+  BinRelocRelativeLoad = 53,    ///< Relative + load address
+
+  //
+  // TLS (Thread-Local Storage) relocations
+  //
+  BinRelocTLSOffset = 60,       ///< TLS offset
+  BinRelocTLSDescriptor = 61,   ///< TLS descriptor
+  BinRelocTLSIndex = 62,        ///< TLS module index
+  BinRelocTLSGD = 63,           ///< TLS General Dynamic
+  BinRelocTLSLD = 64,           ///< TLS Local Dynamic
+  BinRelocTLSIE = 65,           ///< TLS Initial Exec
+  BinRelocTLSLE = 66,           ///< TLS Local Exec
+  BinRelocTLSGDCall = 67,       ///< TLS GD call annotation
+  BinRelocTLSLDCall = 68,       ///< TLS LD call annotation
+
+  //
+  // Section-relative relocations
+  //
+  BinRelocSectionOffset32 = 70, ///< 32-bit section-relative
+  BinRelocSectionOffset64 = 71, ///< 64-bit section-relative
+  BinRelocSecRel = 72,          ///< Section-relative (COFF)
+
+  //
+  // Page/offset relocations (ARM64, RISC-V)
+  //
+  BinRelocPageOffset21 = 80,    ///< 21-bit page offset
+  BinRelocPagePCRelative = 81,  ///< PC-relative page address
+  BinRelocPageOffset12 = 82,    ///< 12-bit page offset
+
+  //
+  // Branch relocations
+  //
+  BinRelocBranch14 = 90,        ///< 14-bit branch (PowerPC)
+  BinRelocBranch24 = 91,        ///< 24-bit branch (ARM)
+  BinRelocBranch26 = 92,        ///< 26-bit branch (ARM64, MIPS)
+  BinRelocBranch32 = 93,        ///< 32-bit branch
+
+  //
+  // Special relocations
+  //
+  BinRelocSize32 = 100,         ///< 32-bit symbol size
+  BinRelocSize64 = 101,         ///< 64-bit symbol size
+  BinRelocSubtract = 102,       ///< Subtract symbol value (Mach-O)
+  BinRelocPair = 103,           ///< Paired relocation (Mach-O)
+  BinRelocLocalPC = 104,        ///< Local PC-relative (Mach-O)
+
+  //
+  // IFunc (indirect function) relocations
+  //
+  BinRelocIRelative = 110,      ///< Indirect relative
+
+  //
+  // Format-specific marker
+  //
+  BinRelocFormatSpecific = 1000 ///< Format-specific types start here
 } BINFORMAT_RELOC_TYPE;
 
 ///
@@ -287,11 +382,21 @@ typedef struct {
 ///
 /// Relocation entry descriptor
 ///
+/// This structure provides a universal representation of relocations
+/// across different binary formats. The Type field uses BINFORMAT_RELOC_TYPE
+/// values, while NativeType preserves the format-specific type for round-tripping.
+///
 typedef struct {
-  UINT64  Offset;       ///< Offset where to apply relocation
-  UINT32  Type;         ///< Relocation type
-  UINT32  SymbolIndex;  ///< Symbol table index
-  INT64   Addend;       ///< Addend for relocation
+  UINT64                 Offset;       ///< Offset where to apply relocation
+  BINFORMAT_RELOC_TYPE   Type;         ///< Universal relocation type
+  UINT32                 SymbolIndex;  ///< Symbol table index
+  INT64                  Addend;       ///< Addend for relocation
+  UINT32                 NativeType;   ///< Format-specific type (for round-tripping)
+  UINT32                 SectionIndex; ///< Section index (if applicable)
+  BOOLEAN                IsScattered;  ///< Scattered relocation (Mach-O)
+  BOOLEAN                IsExtern;     ///< External relocation
+  BOOLEAN                IsPcRel;      ///< PC-relative relocation
+  UINT8                  Length;       ///< Length in bytes (1, 2, 4, 8)
 } BINFORMAT_RELOCATION;
 
 ///
@@ -1646,6 +1751,56 @@ BinFormatGetSymbolBindName(
 CHAR8
 BinFormatGetSymbolTypeChar(
   IN  CONST BINFORMAT_SYMBOL  *Symbol
+  );
+
+/**
+  Get human-readable name for relocation type.
+
+  @param[in]   RelocType         Relocation type.
+
+  @return Pointer to relocation type name string.
+**/
+CONST CHAR8 *
+BinFormatGetRelocTypeName(
+  IN  BINFORMAT_RELOC_TYPE  RelocType
+  );
+
+/**
+  Get relocation size in bytes.
+
+  @param[in]   RelocType         Relocation type.
+
+  @return Size in bytes (0, 1, 2, 4, 8), or 0 if unknown.
+**/
+UINT8
+BinFormatGetRelocSize(
+  IN  BINFORMAT_RELOC_TYPE  RelocType
+  );
+
+/**
+  Check if relocation type is PC-relative.
+
+  @param[in]   RelocType         Relocation type.
+
+  @retval TRUE   Relocation is PC-relative.
+  @retval FALSE  Relocation is not PC-relative.
+**/
+BOOLEAN
+BinFormatIsRelocPCRelative(
+  IN  BINFORMAT_RELOC_TYPE  RelocType
+  );
+
+/**
+  Check if relocation type requires addend.
+
+  @param[in]   RelocType         Relocation type.
+
+  @retval TRUE   Relocation requires addend (RELA-style).
+  @retval FALSE  Relocation doesn't require addend (REL-style).
+**/
+BOOLEAN
+BinFormatRelocNeedsAddend(
+  IN  BINFORMAT_RELOC_TYPE  RelocType
   );
 
 /**
