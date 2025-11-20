@@ -46,6 +46,77 @@
 #define IMAGE_SCN_MEM_WRITE                 0x80000000
 
 //
+// x86-64 Relocation Types
+//
+#define IMAGE_REL_AMD64_ABSOLUTE            0x0000  ///< No relocation
+#define IMAGE_REL_AMD64_ADDR64              0x0001  ///< 64-bit address
+#define IMAGE_REL_AMD64_ADDR32              0x0002  ///< 32-bit address
+#define IMAGE_REL_AMD64_ADDR32NB            0x0003  ///< 32-bit address without base
+#define IMAGE_REL_AMD64_REL32               0x0004  ///< 32-bit relative
+#define IMAGE_REL_AMD64_REL32_1             0x0005  ///< 32-bit relative +1
+#define IMAGE_REL_AMD64_REL32_2             0x0006  ///< 32-bit relative +2
+#define IMAGE_REL_AMD64_REL32_3             0x0007  ///< 32-bit relative +3
+#define IMAGE_REL_AMD64_REL32_4             0x0008  ///< 32-bit relative +4
+#define IMAGE_REL_AMD64_REL32_5             0x0009  ///< 32-bit relative +5
+#define IMAGE_REL_AMD64_SECTION             0x000A  ///< Section index
+#define IMAGE_REL_AMD64_SECREL              0x000B  ///< 32-bit offset from section base
+#define IMAGE_REL_AMD64_SECREL7             0x000C  ///< 7-bit offset from section base
+#define IMAGE_REL_AMD64_TOKEN               0x000D  ///< CLR token
+#define IMAGE_REL_AMD64_SREL32              0x000E  ///< 32-bit signed span
+#define IMAGE_REL_AMD64_PAIR                0x000F  ///< Pair relocation
+#define IMAGE_REL_AMD64_SSPAN32             0x0010  ///< 32-bit signed span
+
+//
+// i386 Relocation Types
+//
+#define IMAGE_REL_I386_ABSOLUTE             0x0000  ///< No relocation
+#define IMAGE_REL_I386_DIR16                0x0001  ///< 16-bit direct
+#define IMAGE_REL_I386_REL16                0x0002  ///< 16-bit PC-relative
+#define IMAGE_REL_I386_DIR32                0x0006  ///< 32-bit direct
+#define IMAGE_REL_I386_DIR32NB              0x0007  ///< 32-bit direct without base
+#define IMAGE_REL_I386_SEG12                0x0009  ///< 16-bit segment
+#define IMAGE_REL_I386_SECTION              0x000A  ///< Section index
+#define IMAGE_REL_I386_SECREL               0x000B  ///< 32-bit offset from section base
+#define IMAGE_REL_I386_TOKEN                0x000C  ///< CLR token
+#define IMAGE_REL_I386_SECREL7              0x000D  ///< 7-bit offset from section base
+#define IMAGE_REL_I386_REL32                0x0014  ///< 32-bit PC-relative
+
+//
+// ARM Relocation Types
+//
+#define IMAGE_REL_ARM_ABSOLUTE              0x0000  ///< No relocation
+#define IMAGE_REL_ARM_ADDR32                0x0001  ///< 32-bit address
+#define IMAGE_REL_ARM_ADDR32NB              0x0002  ///< 32-bit address without base
+#define IMAGE_REL_ARM_BRANCH24              0x0003  ///< 24-bit relative branch
+#define IMAGE_REL_ARM_BRANCH11              0x0004  ///< 11-bit relative branch
+#define IMAGE_REL_ARM_SECTION               0x000E  ///< Section index
+#define IMAGE_REL_ARM_SECREL                0x000F  ///< 32-bit offset from section base
+#define IMAGE_REL_ARM_MOV32                 0x0010  ///< 32-bit immediate (MOVW/MOVT pair)
+#define IMAGE_REL_THUMB_MOV32               0x0011  ///< 32-bit immediate (Thumb MOVW/MOVT)
+#define IMAGE_REL_THUMB_BRANCH20            0x0012  ///< 20-bit relative branch (Thumb)
+#define IMAGE_REL_THUMB_BRANCH24            0x0014  ///< 24-bit relative branch (Thumb)
+#define IMAGE_REL_THUMB_BLX23               0x0015  ///< 23-bit BLX (Thumb)
+
+//
+// ARM64 Relocation Types
+//
+#define IMAGE_REL_ARM64_ABSOLUTE            0x0000  ///< No relocation
+#define IMAGE_REL_ARM64_ADDR32              0x0001  ///< 32-bit address
+#define IMAGE_REL_ARM64_ADDR32NB            0x0002  ///< 32-bit address without base
+#define IMAGE_REL_ARM64_BRANCH26            0x0003  ///< 26-bit relative branch
+#define IMAGE_REL_ARM64_PAGEBASE_REL21      0x0004  ///< 21-bit page base relative
+#define IMAGE_REL_ARM64_REL21               0x0005  ///< 21-bit relative
+#define IMAGE_REL_ARM64_PAGEOFFSET_12A      0x0006  ///< 12-bit page offset (ADD)
+#define IMAGE_REL_ARM64_PAGEOFFSET_12L      0x0007  ///< 12-bit page offset (LDR)
+#define IMAGE_REL_ARM64_SECREL              0x0008  ///< 32-bit offset from section base
+#define IMAGE_REL_ARM64_SECREL_LOW12A       0x0009  ///< 12-bit offset from section base (ADD)
+#define IMAGE_REL_ARM64_SECREL_HIGH12A      0x000A  ///< 12-bit high offset from section base
+#define IMAGE_REL_ARM64_SECREL_LOW12L       0x000B  ///< 12-bit offset from section base (LDR)
+#define IMAGE_REL_ARM64_TOKEN               0x000C  ///< CLR token
+#define IMAGE_REL_ARM64_SECTION             0x000D  ///< Section index
+#define IMAGE_REL_ARM64_ADDR64              0x000E  ///< 64-bit address
+
+//
 /// COFF Structures
 //
 #pragma pack(push, 1)
@@ -149,6 +220,15 @@ typedef struct {
   UINT16  NumberOfLinenumbers;      ///< Number of line numbers
   UINT32  Characteristics;          ///< Section characteristics
 } COFF_SECTION_HEADER;
+
+///
+/// COFF Relocation Entry
+///
+typedef struct {
+  UINT32  VirtualAddress;       ///< Address of item to be relocated
+  UINT32  SymbolTableIndex;     ///< Index into symbol table
+  UINT16  Type;                 ///< Relocation type (machine-specific)
+} COFF_RELOCATION;
 
 ///
 /// COFF Symbol Table Entry
@@ -303,6 +383,19 @@ typedef struct _COFF_CONTEXT {
 } COFF_CONTEXT;
 
 #define COFF_CONTEXT_FROM_BINFORMAT(ctx) ((COFF_CONTEXT *)(ctx))
+
+//
+// COFF Relocation Iterator
+//
+typedef struct {
+  COFF_CONTEXT  *CoffContext;
+  UINT16        Machine;
+  UINT32        SectionIndex;
+  UINT32        CurrentIndex;
+  UINT32        TotalCount;
+  UINT64        RelocOffset;
+  UINT8         *RelocData;
+} COFF_RELOCATION_ITERATOR;
 
 /**
   Convert COFF machine type to BINFORMAT_MACHINE.
@@ -715,6 +808,282 @@ CoffGetHeader (
 }
 
 //
+// Relocation Type Mapping
+//
+
+/**
+  Map COFF relocation type to universal BINFORMAT_RELOC_TYPE.
+
+  @param[in]  Machine     Machine type
+  @param[in]  RelocType   COFF relocation type
+
+  @return Universal relocation type
+**/
+STATIC
+BINFORMAT_RELOC_TYPE
+CoffMapRelocType (
+  IN  UINT16  Machine,
+  IN  UINT16  RelocType
+  )
+{
+  switch (Machine) {
+    case COFF_MAGIC_AMD64:
+      switch (RelocType) {
+        case IMAGE_REL_AMD64_ABSOLUTE:
+          return BinRelocNone;
+        case IMAGE_REL_AMD64_ADDR64:
+          return BinRelocAbsolute64;
+        case IMAGE_REL_AMD64_ADDR32:
+        case IMAGE_REL_AMD64_ADDR32NB:
+          return BinRelocAbsolute32;
+        case IMAGE_REL_AMD64_REL32:
+        case IMAGE_REL_AMD64_REL32_1:
+        case IMAGE_REL_AMD64_REL32_2:
+        case IMAGE_REL_AMD64_REL32_3:
+        case IMAGE_REL_AMD64_REL32_4:
+        case IMAGE_REL_AMD64_REL32_5:
+          return BinRelocPCRelative32;
+        case IMAGE_REL_AMD64_SECREL:
+          return BinRelocRelative32;
+        default:
+          return BinRelocFormatSpecific;
+      }
+
+    case COFF_MAGIC_I386:
+      switch (RelocType) {
+        case IMAGE_REL_I386_ABSOLUTE:
+          return BinRelocNone;
+        case IMAGE_REL_I386_DIR16:
+          return BinRelocAbsolute16;
+        case IMAGE_REL_I386_DIR32:
+        case IMAGE_REL_I386_DIR32NB:
+          return BinRelocAbsolute32;
+        case IMAGE_REL_I386_REL16:
+          return BinRelocPCRelative16;
+        case IMAGE_REL_I386_REL32:
+          return BinRelocPCRelative32;
+        case IMAGE_REL_I386_SECREL:
+          return BinRelocRelative32;
+        default:
+          return BinRelocFormatSpecific;
+      }
+
+    case COFF_MAGIC_ARM:
+    case COFF_MAGIC_ARMNT:
+      switch (RelocType) {
+        case IMAGE_REL_ARM_ABSOLUTE:
+          return BinRelocNone;
+        case IMAGE_REL_ARM_ADDR32:
+        case IMAGE_REL_ARM_ADDR32NB:
+          return BinRelocAbsolute32;
+        case IMAGE_REL_ARM_BRANCH24:
+        case IMAGE_REL_ARM_BRANCH11:
+        case IMAGE_REL_THUMB_BRANCH20:
+        case IMAGE_REL_THUMB_BRANCH24:
+        case IMAGE_REL_THUMB_BLX23:
+          return BinRelocPCRelative32;
+        case IMAGE_REL_ARM_SECREL:
+          return BinRelocRelative32;
+        default:
+          return BinRelocFormatSpecific;
+      }
+
+    case COFF_MAGIC_ARM64:
+      switch (RelocType) {
+        case IMAGE_REL_ARM64_ABSOLUTE:
+          return BinRelocNone;
+        case IMAGE_REL_ARM64_ADDR32:
+        case IMAGE_REL_ARM64_ADDR32NB:
+          return BinRelocAbsolute32;
+        case IMAGE_REL_ARM64_ADDR64:
+          return BinRelocAbsolute64;
+        case IMAGE_REL_ARM64_BRANCH26:
+        case IMAGE_REL_ARM64_PAGEBASE_REL21:
+        case IMAGE_REL_ARM64_REL21:
+          return BinRelocPCRelative32;
+        case IMAGE_REL_ARM64_SECREL:
+          return BinRelocRelative32;
+        default:
+          return BinRelocFormatSpecific;
+      }
+
+    default:
+      return BinRelocFormatSpecific;
+  }
+}
+
+//
+// COFF Relocation Iterator Functions
+//
+
+/**
+  Create relocation iterator for a COFF section.
+
+  @param[in]  Context       Binary format context
+  @param[in]  SectionIndex  Section index
+  @param[out] Iterator      Pointer to receive iterator
+
+  @retval BINFORMAT_SUCCESS         Iterator created
+  @retval BINFORMAT_ERROR_*         Error occurred
+**/
+STATIC
+BINFORMAT_STATUS
+CoffRelocationIterCreate (
+  IN  BINFORMAT_CONTEXT               *Context,
+  IN  UINT32                          SectionIndex,
+  OUT BINFORMAT_RELOCATION_ITERATOR   **Iterator
+  )
+{
+  COFF_CONTEXT              *CoffCtx;
+  COFF_RELOCATION_ITERATOR  *Iter;
+  COFF_SECTION_HEADER       *Section;
+  UINT16                    Machine;
+  UINT32                    NumSections;
+
+  if (Context == NULL || Iterator == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  *Iterator = NULL;
+  CoffCtx = COFF_CONTEXT_FROM_BINFORMAT(Context);
+
+  //
+  // Get machine type and section count
+  //
+  if (CoffCtx->Header.Standard != NULL) {
+    Machine = CoffCtx->Header.Standard->Machine;
+    NumSections = CoffCtx->Header.Standard->NumberOfSections;
+  } else {
+    return BINFORMAT_ERROR_INVALID_FORMAT;
+  }
+
+  //
+  // Validate section index
+  //
+  if (SectionIndex >= NumSections) {
+    return BINFORMAT_ERROR_NOT_FOUND;
+  }
+
+  //
+  // Get section header
+  //
+  Section = &CoffCtx->Sections[SectionIndex];
+
+  //
+  // If no relocations, return success with NULL iterator
+  //
+  if (Section->NumberOfRelocations == 0) {
+    return BINFORMAT_SUCCESS;
+  }
+
+  //
+  // Allocate iterator
+  //
+  Iter = (COFF_RELOCATION_ITERATOR *)malloc(sizeof(COFF_RELOCATION_ITERATOR));
+  if (Iter == NULL) {
+    return BINFORMAT_ERROR_OUT_OF_MEMORY;
+  }
+
+  //
+  // Initialize iterator
+  //
+  Iter->CoffContext = CoffCtx;
+  Iter->Machine = Machine;
+  Iter->SectionIndex = SectionIndex;
+  Iter->CurrentIndex = 0;
+  Iter->TotalCount = Section->NumberOfRelocations;
+  Iter->RelocOffset = Section->PointerToRelocations;
+  Iter->RelocData = CoffCtx->FileData + Iter->RelocOffset;
+
+  *Iterator = (BINFORMAT_RELOCATION_ITERATOR *)Iter;
+  return BINFORMAT_SUCCESS;
+}
+
+/**
+  Get next relocation from iterator.
+
+  @param[in]  Iterator    Relocation iterator
+  @param[out] Relocation  Pointer to receive relocation info
+
+  @retval BINFORMAT_SUCCESS         Relocation retrieved
+  @retval BINFORMAT_ERROR_NOT_FOUND No more relocations
+  @retval BINFORMAT_ERROR_*         Error occurred
+**/
+STATIC
+BINFORMAT_STATUS
+CoffRelocationIterNext (
+  IN  BINFORMAT_RELOCATION_ITERATOR  *Iterator,
+  OUT BINFORMAT_RELOCATION           *Relocation
+  )
+{
+  COFF_RELOCATION_ITERATOR  *Iter;
+  COFF_RELOCATION           *CoffReloc;
+
+  if (Iterator == NULL || Relocation == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  Iter = (COFF_RELOCATION_ITERATOR *)Iterator;
+
+  if (Iter->CurrentIndex >= Iter->TotalCount) {
+    return BINFORMAT_ERROR_NOT_FOUND;
+  }
+
+  //
+  // Read relocation entry from current position
+  //
+  CoffReloc = (COFF_RELOCATION *)(Iter->RelocData +
+                                   (Iter->CurrentIndex * sizeof(COFF_RELOCATION)));
+
+  //
+  // Fill in relocation information
+  //
+  memset(Relocation, 0, sizeof(BINFORMAT_RELOCATION));
+
+  Relocation->Offset = CoffReloc->VirtualAddress;
+  Relocation->Type = CoffMapRelocType(Iter->Machine, CoffReloc->Type);
+  Relocation->SymbolIndex = CoffReloc->SymbolTableIndex;
+  Relocation->Addend = 0;  // COFF doesn't use addends
+  Relocation->NativeType = CoffReloc->Type;
+  Relocation->SectionIndex = Iter->SectionIndex;
+  Relocation->IsScattered = FALSE;
+  Relocation->IsExtern = (CoffReloc->SymbolTableIndex != 0);
+  Relocation->IsPcRel = (Relocation->Type >= BinRelocPCRelative8 &&
+                         Relocation->Type <= BinRelocPCRelative64);
+  Relocation->Length = 4;  // Default to 4 bytes
+
+  //
+  // Adjust length based on relocation type
+  //
+  if (Relocation->Type == BinRelocAbsolute64 || Relocation->Type == BinRelocPCRelative64) {
+    Relocation->Length = 8;
+  } else if (Relocation->Type == BinRelocAbsolute16 || Relocation->Type == BinRelocPCRelative16) {
+    Relocation->Length = 2;
+  } else if (Relocation->Type == BinRelocAbsolute8 || Relocation->Type == BinRelocPCRelative8) {
+    Relocation->Length = 1;
+  }
+
+  Iter->CurrentIndex++;
+  return BINFORMAT_SUCCESS;
+}
+
+/**
+  Free relocation iterator.
+
+  @param[in]  Iterator    Relocation iterator to free
+**/
+STATIC
+VOID
+CoffRelocationIterFree (
+  IN  BINFORMAT_RELOCATION_ITERATOR  *Iterator
+  )
+{
+  if (Iterator != NULL) {
+    free(Iterator);
+  }
+}
+
+//
 // Stub implementations
 //
 STATIC BINFORMAT_STATUS CoffGetSection(IN BINFORMAT_CONTEXT *Ctx, IN UINT32 Idx, OUT BINFORMAT_SECTION *Sec) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
@@ -751,7 +1120,22 @@ STATIC CONST BINFORMAT_API gCoffApi = {
   .AddRelocation = CoffAddRelocation,
   .WriteFile = CoffWriteFile,
   .WriteMemory = CoffWriteMemory,
-  .SelectArchitecture = CoffSelectArchitecture
+  .SelectArchitecture = CoffSelectArchitecture,
+  .SectionIterCreate = NULL,
+  .SectionIterNext = NULL,
+  .SectionIterFree = NULL,
+  .SymbolIterCreate = NULL,
+  .SymbolIterNext = NULL,
+  .SymbolIterFree = NULL,
+  .SegmentIterCreate = NULL,
+  .SegmentIterNext = NULL,
+  .SegmentIterFree = NULL,
+  .RelocationIterCreate = CoffRelocationIterCreate,
+  .RelocationIterNext = CoffRelocationIterNext,
+  .RelocationIterFree = CoffRelocationIterFree,
+  .ArchIterCreate = NULL,
+  .ArchIterNext = NULL,
+  .ArchIterFree = NULL
 };
 
 /**
