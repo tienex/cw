@@ -51,6 +51,77 @@ typedef struct {
   UINT32  Align;        ///< Alignment
 } FAT_ARCH;
 
+//
+// Mach-O Segment Command Structures
+//
+typedef struct {
+  UINT32  Cmd;          ///< LC_SEGMENT
+  UINT32  CmdSize;      ///< Size of this load command
+  CHAR8   SegName[16];  ///< Segment name
+  UINT32  VmAddr;       ///< Virtual memory address
+  UINT32  VmSize;       ///< Virtual memory size
+  UINT32  FileOff;      ///< File offset
+  UINT32  FileSize;     ///< File size
+  UINT32  MaxProt;      ///< Maximum VM protection
+  UINT32  InitProt;     ///< Initial VM protection
+  UINT32  NumSects;     ///< Number of sections in segment
+  UINT32  Flags;        ///< Flags
+} SEGMENT_COMMAND_32;
+
+typedef struct {
+  UINT32  Cmd;          ///< LC_SEGMENT_64
+  UINT32  CmdSize;      ///< Size of this load command
+  CHAR8   SegName[16];  ///< Segment name
+  UINT64  VmAddr;       ///< Virtual memory address
+  UINT64  VmSize;       ///< Virtual memory size
+  UINT64  FileOff;      ///< File offset
+  UINT64  FileSize;     ///< File size
+  UINT32  MaxProt;      ///< Maximum VM protection
+  UINT32  InitProt;     ///< Initial VM protection
+  UINT32  NumSects;     ///< Number of sections in segment
+  UINT32  Flags;        ///< Flags
+} SEGMENT_COMMAND_64;
+
+//
+// Mach-O Section Structures
+//
+typedef struct {
+  CHAR8   SectName[16]; ///< Section name
+  CHAR8   SegName[16];  ///< Segment name
+  UINT32  Addr;         ///< Virtual address
+  UINT32  Size;         ///< Section size
+  UINT32  Offset;       ///< File offset
+  UINT32  Align;        ///< Alignment (2^align)
+  UINT32  RelOff;       ///< File offset of relocations
+  UINT32  NumReloc;     ///< Number of relocation entries
+  UINT32  Flags;        ///< Section type and attributes
+  UINT32  Reserved1;    ///< Reserved (for offset or index)
+  UINT32  Reserved2;    ///< Reserved (for count or sizeof)
+} SECTION_32;
+
+typedef struct {
+  CHAR8   SectName[16]; ///< Section name
+  CHAR8   SegName[16];  ///< Segment name
+  UINT64  Addr;         ///< Virtual address
+  UINT64  Size;         ///< Section size
+  UINT32  Offset;       ///< File offset
+  UINT32  Align;        ///< Alignment (2^align)
+  UINT32  RelOff;       ///< File offset of relocations
+  UINT32  NumReloc;     ///< Number of relocation entries
+  UINT32  Flags;        ///< Section type and attributes
+  UINT32  Reserved1;    ///< Reserved (for offset or index)
+  UINT32  Reserved2;    ///< Reserved (for count or sizeof)
+  UINT32  Reserved3;    ///< Reserved
+} SECTION_64;
+
+//
+// Load command header (common to all load commands)
+//
+typedef struct {
+  UINT32  Cmd;          ///< Load command type
+  UINT32  CmdSize;      ///< Size of this command
+} LOAD_COMMAND;
+
 #pragma pack(pop)
 
 //
@@ -541,7 +612,230 @@ MachoGetHeader (
   return BINFORMAT_SUCCESS;
 }
 
-STATIC BINFORMAT_STATUS MachoGetSection(IN BINFORMAT_CONTEXT *Ctx, IN UINT32 Idx, OUT BINFORMAT_SECTION *Sec) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
+/**
+  Count total number of sections across all segments.
+
+  @param[in]  MachoCtx  Mach-O context
+
+  @retval Total number of sections
+**/
+STATIC
+UINT32
+MachoCountSections (
+  IN  MACHO_CONTEXT  *MachoCtx
+  )
+{
+  UINT8          *LoadCmdPtr;
+  UINT32         NumCmds;
+  UINT32         SizeOfCmds;
+  UINT32         TotalSections;
+  UINT32         i;
+  LOAD_COMMAND   *LoadCmd;
+
+  TotalSections = 0;
+
+  if (MachoCtx->Is64Bit) {
+    NumCmds = MachoCtx->Header.Macho64->NumCmds;
+    SizeOfCmds = MachoCtx->Header.Macho64->SizeOfCmds;
+    LoadCmdPtr = (UINT8 *)MachoCtx->Header.Macho64 + sizeof(MACHO_HEADER_64);
+  } else {
+    NumCmds = MachoCtx->Header.Macho32->NumCmds;
+    SizeOfCmds = MachoCtx->Header.Macho32->SizeOfCmds;
+    LoadCmdPtr = (UINT8 *)MachoCtx->Header.Macho32 + sizeof(MACHO_HEADER_32);
+  }
+
+  for (i = 0; i < NumCmds; i++) {
+    LoadCmd = (LOAD_COMMAND *)LoadCmdPtr;
+
+    if (LoadCmd->Cmd == LC_SEGMENT) {
+      SEGMENT_COMMAND_32 *Segment = (SEGMENT_COMMAND_32 *)LoadCmd;
+      TotalSections += Segment->NumSects;
+    } else if (LoadCmd->Cmd == LC_SEGMENT_64) {
+      SEGMENT_COMMAND_64 *Segment = (SEGMENT_COMMAND_64 *)LoadCmd;
+      TotalSections += Segment->NumSects;
+    }
+
+    LoadCmdPtr += LoadCmd->CmdSize;
+  }
+
+  return TotalSections;
+}
+
+/**
+  Find a section by index and return its information.
+
+  @param[in]  MachoCtx      Mach-O context
+  @param[in]  SectionIndex  Global section index
+  @param[out] SectionOut    Pointer to section structure (32 or 64-bit)
+  @param[out] Is64Bit       TRUE if section is 64-bit
+
+  @retval BINFORMAT_SUCCESS      Section found
+  @retval BINFORMAT_ERROR_NOT_FOUND  Section index out of range
+**/
+STATIC
+BINFORMAT_STATUS
+MachoFindSectionByIndex (
+  IN  MACHO_CONTEXT  *MachoCtx,
+  IN  UINT32         SectionIndex,
+  OUT VOID           **SectionOut,
+  OUT BOOLEAN        *Is64Bit
+  )
+{
+  UINT8          *LoadCmdPtr;
+  UINT32         NumCmds;
+  UINT32         CurrentIndex;
+  UINT32         i;
+  LOAD_COMMAND   *LoadCmd;
+
+  CurrentIndex = 0;
+  *SectionOut = NULL;
+  *Is64Bit = MachoCtx->Is64Bit;
+
+  if (MachoCtx->Is64Bit) {
+    NumCmds = MachoCtx->Header.Macho64->NumCmds;
+    LoadCmdPtr = (UINT8 *)MachoCtx->Header.Macho64 + sizeof(MACHO_HEADER_64);
+  } else {
+    NumCmds = MachoCtx->Header.Macho32->NumCmds;
+    LoadCmdPtr = (UINT8 *)MachoCtx->Header.Macho32 + sizeof(MACHO_HEADER_32);
+  }
+
+  for (i = 0; i < NumCmds; i++) {
+    LoadCmd = (LOAD_COMMAND *)LoadCmdPtr;
+
+    if (LoadCmd->Cmd == LC_SEGMENT) {
+      SEGMENT_COMMAND_32 *Segment = (SEGMENT_COMMAND_32 *)LoadCmd;
+      SECTION_32 *Sections = (SECTION_32 *)(Segment + 1);
+
+      if (SectionIndex < CurrentIndex + Segment->NumSects) {
+        *SectionOut = &Sections[SectionIndex - CurrentIndex];
+        return BINFORMAT_SUCCESS;
+      }
+      CurrentIndex += Segment->NumSects;
+    } else if (LoadCmd->Cmd == LC_SEGMENT_64) {
+      SEGMENT_COMMAND_64 *Segment = (SEGMENT_COMMAND_64 *)LoadCmd;
+      SECTION_64 *Sections = (SECTION_64 *)(Segment + 1);
+
+      if (SectionIndex < CurrentIndex + Segment->NumSects) {
+        *SectionOut = &Sections[SectionIndex - CurrentIndex];
+        return BINFORMAT_SUCCESS;
+      }
+      CurrentIndex += Segment->NumSects;
+    }
+
+    LoadCmdPtr += LoadCmd->CmdSize;
+  }
+
+  return BINFORMAT_ERROR_NOT_FOUND;
+}
+
+/**
+  Get section information by index.
+
+  @param[in]  Ctx  Binary format context
+  @param[in]  Idx  Section index
+  @param[out] Sec  Section information
+
+  @retval BINFORMAT_SUCCESS         Section retrieved
+  @retval BINFORMAT_ERROR_NOT_FOUND Section index out of range
+  @retval BINFORMAT_ERROR_*         Error occurred
+**/
+STATIC
+BINFORMAT_STATUS
+MachoGetSection (
+  IN  BINFORMAT_CONTEXT   *Ctx,
+  IN  UINT32              Idx,
+  OUT BINFORMAT_SECTION   *Sec
+  )
+{
+  MACHO_CONTEXT      *MachoCtx;
+  VOID               *SectionPtr;
+  BOOLEAN            Is64Bit;
+  BINFORMAT_STATUS   Status;
+  UINT32             TotalSections;
+
+  if (Ctx == NULL || Sec == NULL) {
+    return BINFORMAT_ERROR_INVALID_PARAMETER;
+  }
+
+  MachoCtx = MACHO_CONTEXT_FROM_BINFORMAT(Ctx);
+
+  //
+  // Check if section index is valid
+  //
+  TotalSections = MachoCountSections(MachoCtx);
+  if (Idx >= TotalSections) {
+    return BINFORMAT_ERROR_NOT_FOUND;
+  }
+
+  //
+  // Find the section
+  //
+  Status = MachoFindSectionByIndex(MachoCtx, Idx, &SectionPtr, &Is64Bit);
+  if (BINFORMAT_IS_ERROR(Status)) {
+    return Status;
+  }
+
+  //
+  // Fill in the section information
+  //
+  memset(Sec, 0, sizeof(BINFORMAT_SECTION));
+
+  if (Is64Bit) {
+    SECTION_64 *Section = (SECTION_64 *)SectionPtr;
+
+    //
+    // Copy section name (format: segment.section)
+    //
+    snprintf(Sec->Name, BINFORMAT_MAX_SECTION_NAME, "%.16s.%.16s",
+             Section->SegName, Section->SectName);
+
+    Sec->VirtualAddress = Section->Addr;
+    Sec->FileOffset = Section->Offset;
+    Sec->Size = Section->Size;
+    Sec->Alignment = (1ULL << Section->Align);
+    Sec->Flags = Section->Flags;
+    Sec->Link = 0;
+    Sec->Info = Section->NumReloc;  // Store relocation count in Info
+    Sec->EntrySize = 0;
+
+    //
+    // Set Data pointer to section content
+    //
+    if (Section->Offset > 0 && Section->Offset < MachoCtx->FileSize) {
+      Sec->Data = MachoCtx->FileData + MachoCtx->CurrentOffset + Section->Offset;
+    } else {
+      Sec->Data = NULL;
+    }
+  } else {
+    SECTION_32 *Section = (SECTION_32 *)SectionPtr;
+
+    //
+    // Copy section name (format: segment.section)
+    //
+    snprintf(Sec->Name, BINFORMAT_MAX_SECTION_NAME, "%.16s.%.16s",
+             Section->SegName, Section->SectName);
+
+    Sec->VirtualAddress = Section->Addr;
+    Sec->FileOffset = Section->Offset;
+    Sec->Size = Section->Size;
+    Sec->Alignment = (1ULL << Section->Align);
+    Sec->Flags = Section->Flags;
+    Sec->Link = 0;
+    Sec->Info = Section->NumReloc;  // Store relocation count in Info
+    Sec->EntrySize = 0;
+
+    //
+    // Set Data pointer to section content
+    //
+    if (Section->Offset > 0 && Section->Offset < MachoCtx->FileSize) {
+      Sec->Data = MachoCtx->FileData + MachoCtx->CurrentOffset + Section->Offset;
+    } else {
+      Sec->Data = NULL;
+    }
+  }
+
+  return BINFORMAT_SUCCESS;
+}
 STATIC BINFORMAT_STATUS MachoGetSectionByName(IN BINFORMAT_CONTEXT *Ctx, IN CONST CHAR8 *Name, OUT BINFORMAT_SECTION *Sec) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
 STATIC BINFORMAT_STATUS MachoGetSegment(IN BINFORMAT_CONTEXT *Ctx, IN UINT32 Idx, OUT BINFORMAT_SEGMENT *Seg) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
 STATIC BINFORMAT_STATUS MachoGetSymbol(IN BINFORMAT_CONTEXT *Ctx, IN UINT32 Idx, OUT BINFORMAT_SYMBOL *Sym) { return BINFORMAT_ERROR_NOT_IMPLEMENTED; }
@@ -1045,18 +1339,18 @@ MachoRelocationIterCreate (
 {
   MACHO_CONTEXT              *MachoCtx;
   MACHO_RELOCATION_ITERATOR  *Iter;
-  UINT8                      *LoadCmdPtr;
-  UINT32                     i;
-  UINT32                     CmdSize;
-  UINT32                     Cmd;
-  UINT32                     NumCmds;
-  UINT32                     SectionCount;
+  VOID                       *SectionPtr;
+  BOOLEAN                    Is64Bit;
+  BINFORMAT_STATUS           Status;
   UINT32                     CpuType;
+  UINT32                     RelOff;
+  UINT32                     NumReloc;
 
   if (Context == NULL || Iterator == NULL) {
     return BINFORMAT_ERROR_INVALID_PARAMETER;
   }
 
+  *Iterator = NULL;
   MachoCtx = MACHO_CONTEXT_FROM_BINFORMAT(Context);
 
   //
@@ -1064,46 +1358,59 @@ MachoRelocationIterCreate (
   //
   if (MachoCtx->Is64Bit) {
     CpuType = MachoCtx->Header.Macho64->CpuType;
-    NumCmds = MachoCtx->Header.Macho64->NumCmds;
-    LoadCmdPtr = MachoCtx->FileData + MachoCtx->CurrentOffset + sizeof(MACHO_HEADER_64);
   } else {
     CpuType = MachoCtx->Header.Macho32->CpuType;
-    NumCmds = MachoCtx->Header.Macho32->NumCmds;
-    LoadCmdPtr = MachoCtx->FileData + MachoCtx->CurrentOffset + sizeof(MACHO_HEADER_32);
   }
 
   //
-  // Walk through load commands to find the section
-  // Note: Mach-O stores sections within segments (LC_SEGMENT/LC_SEGMENT_64)
-  // For now, return NOT_IMPLEMENTED as full section parsing is not yet complete
+  // Find the section by index
   //
-  // TODO: Implement full section parsing when MachoGetSection is implemented
-  //
-
-  SectionCount = 0;
-  for (i = 0; i < NumCmds; i++) {
-    Cmd = *(UINT32 *)LoadCmdPtr;
-    CmdSize = *((UINT32 *)LoadCmdPtr + 1);
-
-    if (Cmd == LC_SEGMENT || Cmd == LC_SEGMENT_64) {
-      //
-      // Parse segment command to extract sections and their relocations
-      // Each section has: nreloc (count) and reloff (file offset)
-      //
-      // This requires full segment/section structure parsing
-      // which will be implemented when section enumeration is complete
-      //
-    }
-
-    LoadCmdPtr += CmdSize;
+  Status = MachoFindSectionByIndex(MachoCtx, SectionIndex, &SectionPtr, &Is64Bit);
+  if (BINFORMAT_IS_ERROR(Status)) {
+    return Status;
   }
 
   //
-  // For now, return NOT_IMPLEMENTED
-  // This will be implemented when MachoGetSection and full section
-  // parsing is completed
+  // Extract relocation information from the section
   //
-  return BINFORMAT_ERROR_NOT_IMPLEMENTED;
+  if (Is64Bit) {
+    SECTION_64 *Section = (SECTION_64 *)SectionPtr;
+    RelOff = Section->RelOff;
+    NumReloc = Section->NumReloc;
+  } else {
+    SECTION_32 *Section = (SECTION_32 *)SectionPtr;
+    RelOff = Section->RelOff;
+    NumReloc = Section->NumReloc;
+  }
+
+  //
+  // If no relocations, return success with NULL iterator
+  //
+  if (NumReloc == 0) {
+    return BINFORMAT_SUCCESS;
+  }
+
+  //
+  // Allocate iterator
+  //
+  Iter = (MACHO_RELOCATION_ITERATOR *)malloc(sizeof(MACHO_RELOCATION_ITERATOR));
+  if (Iter == NULL) {
+    return BINFORMAT_ERROR_OUT_OF_MEMORY;
+  }
+
+  //
+  // Initialize iterator
+  //
+  Iter->MachoContext = MachoCtx;
+  Iter->CpuType = CpuType;
+  Iter->SectionIndex = SectionIndex;
+  Iter->CurrentIndex = 0;
+  Iter->TotalCount = NumReloc;
+  Iter->RelocOffset = MachoCtx->CurrentOffset + RelOff;
+  Iter->RelocData = MachoCtx->FileData + Iter->RelocOffset;
+
+  *Iterator = (BINFORMAT_RELOCATION_ITERATOR *)Iter;
+  return BINFORMAT_SUCCESS;
 }
 
 STATIC
